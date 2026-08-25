@@ -1,28 +1,16 @@
 <!--
 Sync Impact Report
-- Version change: 1.0.0 → 2.0.0
-- Modified principles (content, titles unchanged):
-  - I. Stack Tecnológico Oficial — `flutter_bloc` reemplazado por `flutter_riverpod` +
-    `riverpod_annotation` (+ `riverpod_generator`/`build_runner` en dev); `bloc_test` reemplazado
-    por testing directo con `ProviderContainer`.
-  - II. Clean Architecture en Capas — la capa Presentation ya no usa Bloc/Cubit
-    (`*_bloc.dart`/`*_event.dart`/`*_state.dart`); ahora usa Riverpod Notifier/AsyncNotifier
-    (`*_provider.dart`, opcionalmente `*_state.dart` con `freezed` para estado UI-only). Diagrama y
-    descripción del flujo de datos actualizados de "Bloc" a "Notifier (Riverpod)".
-  - III. Convenciones de Código y Estilo Dart — regla de desacoplamiento UI/estado reescrita para
-    `ConsumerWidget` + `ref.watch`/`ref.read` en vez de `BlocBuilder`/`context.read<Bloc>()`.
-  - IV. Restricciones Estrictas — prohibición de `setState` ahora referencia estado gestionado por
-    un Riverpod Notifier/AsyncNotifier en vez de un Bloc/Cubit.
-  - V. Inyección de Dependencias y Manejo de Errores — GetIt ya no registra el manejador de estado
-    (antes `registerFactory` para Blocs/Cubits); Repositories/Services se siguen registrando en
-    GetIt, y los Providers de Riverpod los resuelven internamente. Manejo de errores
-    (`Either<Failure, Success>` con `fpdart`) no cambia.
-- Added sections: ninguna
+- Version change: 2.0.0 → 2.1.0
+- Modified principles:
+  - III. Convenciones de Código y Estilo Dart — se agrega una excepción explícita a la regla de
+    "Desacoplamiento UI/Estado": un widget puede seguir siendo `StatelessWidget`/`StatefulWidget`
+    (en vez de `ConsumerWidget`) cuando no lee ningún provider ni despacha acciones a un Notifier.
+    Resuelve una contradicción detectada por `/speckit-analyze` (hallazgo C1) entre el texto
+    anterior de este principio (que exigía `ConsumerWidget` sin excepción) y la Regla 9 de
+    `docs/ARCHITECTURE.md` (que ya permitía `StatelessWidget` "siempre que sea posible").
+- Added sections: ninguna (expansión de una regla existente, no una sección nueva)
 - Removed sections: ninguna
-- Also updated: sección "Flujo de Desarrollo y Calidad de Código" (tests de Bloc → tests de
-  Notifier con `ProviderContainer`).
-- Follow-up TODOs: ninguno. Fuera del alcance de esta enmienda (solo constitución): sincronizar
-  `docs/ARCHITECTURE.md`, que aún documenta Bloc — ver Next Actions.
+- Follow-up TODOs: ninguno.
 -->
 
 # LimpiApp Constitution
@@ -115,6 +103,10 @@ Domain ni Presentation, y hace explícito que Domain es la capa estable de la qu
   sean puramente de presentación (formateo simple, layout). `ref.watch` DEBE usarse únicamente
   dentro de `build()`; para leer un valor una sola vez fuera de `build()` (ej. en un callback) se usa
   `ref.read`.
+- **Excepción**: un widget puede ser `StatelessWidget`/`StatefulWidget` en vez de `ConsumerWidget`
+  únicamente cuando no lee ningún provider (`ref.watch`) ni despacha acciones a un Notifier — es
+  decir, cuando no tiene ningún estado de negocio que consumir. En cuanto el widget necesite leer un
+  provider, debe convertirse a `ConsumerWidget`/`ConsumerStatefulWidget`.
 
 **Racional**: convenciones uniformes y `const` obligatorio reducen rebuilds innecesarios y hacen que
 el código sea revisable por cualquier miembro del equipo sin fricción de estilo.
@@ -193,4 +185,4 @@ actualizarse para reflejar la constitución, no al revés).
   aprobarse; cualquier complejidad que se desvíe de esta constitución debe justificarse
   explícitamente en la descripción del PR.
 
-**Version**: 2.0.0 | **Ratified**: 2026-08-24 | **Last Amended**: 2026-08-24
+**Version**: 2.1.0 | **Ratified**: 2026-08-24 | **Last Amended**: 2026-08-24

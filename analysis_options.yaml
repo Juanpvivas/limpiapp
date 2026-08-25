@@ -18,6 +18,11 @@ analyzer:
     - windows/**
     - macos/**
     - linux/**
+  errors:
+    # Principio III de la constitución: const obligatorio donde el compilador lo permita.
+    prefer_const_constructors: error
+    prefer_const_literals_to_create_immutables: error
+    prefer_const_declarations: error
 
 linter:
   # The lint rules applied to this project can be customized in the

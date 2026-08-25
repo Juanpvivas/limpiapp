@@ -133,9 +133,10 @@ inferior aparece resaltado como sección activa.
   inferior) llevan a la sección correcta en cada intento.
 - **SC-003**: El usuario puede moverse entre cualquiera de las tres secciones principales usando la
   barra inferior sin necesidad de regresar antes a la pantalla de inicio, en el 100% de los casos.
-- **SC-004**: En pruebas de usabilidad, el 95% de los usuarios identifican correctamente y sin
-  ayuda cuál sección de la app están viendo actualmente, gracias al indicador de selección en la
-  barra inferior.
+- **SC-004**: El indicador de selección en la barra inferior distingue visualmente la sección
+  activa de las otras dos (color, ícono relleno/contorno, o equivalente) en cualquier estado de la
+  app, sin necesidad de instrucciones adicionales para interpretarlo. No se mide con una prueba de
+  usabilidad formal para esta feature.
 
 ## Assumptions
 

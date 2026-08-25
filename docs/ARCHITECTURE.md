@@ -201,7 +201,7 @@ lib/
 6. **Sin excepciones más allá de Data**: toda excepción capturada en un Service/Repository debe mapearse a un `Failure`; un `throw` nunca debe cruzar hacia Domain/Presentation.
 7. **`BuildContext` después de `await`**: siempre verificar `context.mounted` inmediatamente antes de usar un `BuildContext` después de un `await`.
 8. **Tamaño de archivo**: máximo 200 líneas por archivo de UI (`*_screen.dart`, `*_widget.dart`); extraer sub-widgets al superarlo.
-9. **Sin Stateful Widgets para lógica**: usar `ConsumerWidget`/`StatelessWidget` junto con Riverpod siempre que sea posible. Usar `StatefulWidget`/`ConsumerStatefulWidget` solo para asuntos locales y aislados (animaciones, controladores de texto).
+9. **Sin Stateful Widgets para lógica**: un widget usa `ConsumerWidget`/`ConsumerStatefulWidget` únicamente cuando lee un provider (`ref.watch`) o despacha acciones a un Notifier; si no lee ningún provider ni Notifier, es `StatelessWidget`/`StatefulWidget`. `StatefulWidget`/`ConsumerStatefulWidget` se reservan además para asuntos locales y aislados (animaciones, controladores de texto).
 10. **Linting obligatorio**: correr estos checks antes de cada commit:
    ```bash
    dart format .
