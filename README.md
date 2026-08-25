@@ -22,7 +22,11 @@ No requiere inicio de sesión. Los mockups de referencia están en
 | Manejo de estado | `flutter_riverpod` + `riverpod_annotation` |
 | Inyección de dependencias | `get_it` |
 | Manejo de errores | `fpdart` (`Either<Failure, Success>`) |
-| Networking | `dio` |
+| Networking (API REST propia/terceros) | `dio` |
+| Backend administrado (Firebase) | `firebase_core` + `cloud_firestore` + `firebase_storage` |
+| Foto (cámara/galería + compresión) | `image_picker` + `flutter_image_compress` |
+| Ubicación (GPS + reverse geocoding) | `geolocator` + `geocoding` |
+| Permisos (cámara/galería/ubicación) | `permission_handler` |
 | Ruteo | `go_router` |
 | Modelos/serialización | `freezed` + `json_serializable` |
 | Persistencia local | `shared_preferences` / `isar` |
@@ -54,6 +58,14 @@ flutter pub get
 flutter run
 ```
 
+**Features que usan Firebase como backend** (ej. "Crear Reporte") requieren además un proyecto de
+Firebase configurado antes de compilar:
+
+1. Crear un proyecto en [Firebase Console](https://console.firebase.google.com).
+2. Correr `flutterfire configure` desde la raíz del proyecto (requiere login con la cuenta de
+   Google del proyecto) — esto genera `lib/firebase_options.dart`,
+   `android/app/google-services.json` e `ios/Runner/GoogleService-Info.plist`.
+
 Antes de cada commit:
 
 ```bash
@@ -74,7 +86,8 @@ independiente en [`specs/`](specs) siguiendo el flujo:
 
 | Feature | Spec | Estado |
 |---|---|---|
-| Shell de Navegación Principal | [`specs/001-navegacion-principal`](specs/001-navegacion-principal) | Plan listo — pendiente `/speckit-tasks` |
+| Shell de Navegación Principal | [`specs/001-navegacion-principal`](specs/001-navegacion-principal) | Implementada — pendientes assets reales de marca/fondo (T012) y validación manual de edge cases (T024) |
+| Crear Reporte | [`specs/002-crear-reporte`](specs/002-crear-reporte) | Spec lista (0 `NEEDS CLARIFICATION`) — pendiente `/speckit-plan` |
 
 ## Documentación
 

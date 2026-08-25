@@ -1,14 +1,18 @@
 <!--
 Sync Impact Report
-- Version change: 2.0.0 → 2.1.0
+- Version change: 2.2.0 → 2.3.0
 - Modified principles:
-  - III. Convenciones de Código y Estilo Dart — se agrega una excepción explícita a la regla de
-    "Desacoplamiento UI/Estado": un widget puede seguir siendo `StatelessWidget`/`StatefulWidget`
-    (en vez de `ConsumerWidget`) cuando no lee ningún provider ni despacha acciones a un Notifier.
-    Resuelve una contradicción detectada por `/speckit-analyze` (hallazgo C1) entre el texto
-    anterior de este principio (que exigía `ConsumerWidget` sin excepción) y la Regla 9 de
-    `docs/ARCHITECTURE.md` (que ya permitía `StatelessWidget` "siempre que sea posible").
-- Added sections: ninguna (expansión de una regla existente, no una sección nueva)
+  - I. Stack Tecnológico Oficial — se agregan cinco paquetes aprobados para captura de fotos y
+    ubicación, requeridos por features como "Crear Reporte": `image_picker` (cámara/galería),
+    `flutter_image_compress` (compresión/redimensionado en el dispositivo), `geolocator`
+    (coordenadas GPS), `geocoding` (reverse geocoding a dirección legible) y `permission_handler`
+    (permisos unificados de cámara/galería/ubicación en iOS/Android).
+  - V. Inyección de Dependencias y Manejo de Errores — se aclara explícitamente que las denegaciones
+    de permiso (cámara, galería, ubicación) y los errores de `image_picker`,
+    `flutter_image_compress`, `geolocator`, `geocoding` y `permission_handler` también deben
+    mapearse a un `Failure` dentro de la implementación del Repository/Service correspondiente,
+    igual que las excepciones de Firebase o de `dio`.
+- Added sections: ninguna (expansión de reglas existentes, no secciones nuevas)
 - Removed sections: ninguna
 - Follow-up TODOs: ninguno.
 -->
@@ -29,7 +33,15 @@ decisión ad-hoc en un PR.
 | Gestión de estado | `flutter_riverpod` + `riverpod_annotation` (`riverpod_generator`/`build_runner` en dev) | Único mecanismo de estado en la capa de Presentación, vía `@riverpod` Notifier/AsyncNotifier |
 | Inyección de dependencias | `get_it` (+ `injectable` opcional para generación de código) | Registro y resolución de Repositories/Services |
 | Manejo de errores | `fpdart` (`Either<Failure, Success>`) | Resultado explícito de operaciones falibles en Domain/Data |
-| Networking | `dio` | Cliente HTTP, interceptores, manejo de tokens |
+| Networking | `dio` | Cliente HTTP, interceptores, manejo de tokens — para APIs REST propias o de terceros |
+| Backend (BaaS) | `firebase_core` | Paquete base obligatorio para inicializar cualquier servicio de Firebase |
+| Backend (BaaS) — Base de datos | `cloud_firestore` | Datos estructurados de features respaldadas por Firebase (ej. reportes: tipo de residuo, descripción, ubicación, número de reporte, timestamps) |
+| Backend (BaaS) — Almacenamiento | `firebase_storage` | Almacenamiento de archivos binarios asociados a un documento (ej. fotos comprimidas de un reporte) |
+| Captura de foto | `image_picker` | Capturar foto con la cámara o elegirla de la galería |
+| Compresión de imagen | `flutter_image_compress` | Comprimir/redimensionar la foto en el dispositivo antes de enviarla, para cumplir el límite de tamaño que defina cada feature |
+| Ubicación | `geolocator` | Obtener las coordenadas GPS del dispositivo |
+| Geocodificación | `geocoding` | Convertir coordenadas GPS en una dirección legible (reverse geocoding) para mostrarla al usuario |
+| Permisos | `permission_handler` | Solicitar y verificar permisos de cámara, galería y ubicación de forma unificada en iOS/Android |
 | Ruteo | `go_router` | Navegación declarativa y guards de ruta |
 | Modelos/serialización | `freezed` + `json_serializable` | Inmutabilidad, `copyWith`, `==`, unions, DTOs |
 | Persistencia local | `shared_preferences` (config simple) / `isar` (datos estructurados) | Cache y almacenamiento offline |
@@ -40,11 +52,24 @@ decisión ad-hoc en un PR.
 del proyecto al momento de instalarla (`dart pub add <paquete>`); no se pinnean versiones exactas
 salvo que un paquete introduzca un breaking change documentado que rompa el build.
 
+**Firebase como backend**: `cloud_firestore`/`firebase_storage` son el backend elegido para features
+donde el Repository en Data consume directamente el SDK de Firebase en vez de `dio` + REST (ej.
+"Crear Reporte"). `dio` no se reemplaza: sigue siendo el paquete aprobado para cualquier caso que
+requiera consumir una API REST propia o de terceros. Ambos pueden coexistir en el proyecto, incluso
+dentro de la misma feature, según de dónde venga cada dato.
+
 **Racional**: una lista cerrada de paquetes evita fragmentación (ej. mezclar dos manejadores de
 estado o dos librerías de manejo de errores en distintas features) y garantiza que cualquier
 desarrollador pueda leer código de cualquier feature sin aprender un patrón nuevo. Riverpod se elige
 sobre Bloc por decisión explícita del equipo (menos boilerplate por feature — sin archivos
-`*_event.dart` separados — y DI de providers integrada en el propio framework de estado).
+`*_event.dart` separados — y DI de providers integrada en el propio framework de estado). Firebase
+(Firestore + Storage) se adopta como backend administrado para evitar construir y operar un servidor
+REST propio en features que no lo necesitan, sin renunciar a `dio` para las integraciones que sí
+requieren una API REST. `image_picker`, `flutter_image_compress`, `geolocator`, `geocoding` y
+`permission_handler` se fijan como el único camino aprobado para capturar fotos y ubicación (en vez
+de que cada feature elija su propia librería de cámara/GPS), ya que son necesidades transversales a
+cualquier feature que reporte un punto geográfico con evidencia fotográfica, empezando por "Crear
+Reporte".
 
 ### II. Clean Architecture en Capas (Data / Domain / Presentation)
 
@@ -134,19 +159,32 @@ evita que se filtren en review por "parece funcionar".
 ### V. Inyección de Dependencias y Manejo de Errores
 
 - **GetIt**: un único `ServiceLocator` (`lib/config/service_locator.dart`) registra Repositories y
-  Services en `main.dart` antes de `runApp()`, con `registerLazySingleton`. El estado de
-  Presentation (Notifier/AsyncNotifier) **no** se registra en GetIt: se expone como Riverpod
-  Provider (`@riverpod` sobre la clase `Notifier`/`AsyncNotifier`), y dentro de su constructor (o de
-  un Provider intermedio, ej. `Provider((ref) => getIt<ReportRepository>())`) resuelve sus
-  dependencias leyendo `getIt<T>()`. Los widgets NUNCA instancian un Notifier/Repository
-  directamente — el estado se obtiene vía `ref.watch`/`ref.read`, y un Repository/Service usado
-  fuera de un provider se obtiene vía `getIt<T>()`.
+  Services en `main.dart` antes de `runApp()`, con `registerLazySingleton`. Esto incluye las
+  instancias de clientes de backend administrado como `FirebaseFirestore.instance` y
+  `FirebaseStorage.instance`: se registran en GetIt con `registerLazySingleton` exactamente igual
+  que cualquier otro Service (ej. un cliente `dio`), nunca instanciadas directamente dentro de un
+  Repository o Notifier. El estado de Presentation (Notifier/AsyncNotifier) **no** se registra en
+  GetIt: se expone como Riverpod Provider (`@riverpod` sobre la clase `Notifier`/`AsyncNotifier`), y
+  dentro de su constructor (o de un Provider intermedio, ej. `Provider((ref) =>
+  getIt<ReportRepository>())`) resuelve sus dependencias leyendo `getIt<T>()`. Los widgets NUNCA
+  instancian un Notifier/Repository directamente — el estado se obtiene vía `ref.watch`/`ref.read`,
+  y un Repository/Service usado fuera de un provider se obtiene vía `getIt<T>()`.
 - **Manejo de errores**: todo método de Use Case y de la interfaz de Repository en Domain DEBE
   retornar `Future<Either<Failure, T>>` (o `Stream<Either<Failure, T>>`). `Failure` es una jerarquía
   sellada (`sealed class Failure`) en `lib/domain/models/failure.dart` (ej. `ServerFailure`,
   `CacheFailure`, `NetworkFailure`). Está prohibido propagar excepciones (`throw`) fuera de la capa
   Data — toda excepción capturada en un Service/Repository DEBE mapearse a un `Failure` antes de
-  cruzar hacia Domain/Presentation.
+  cruzar hacia Domain/Presentation. Esto aplica igual a las excepciones propias del SDK de Firebase
+  (`FirebaseException` y sus subtipos, ej. errores de Firestore o de Storage): la implementación del
+  Repository en Data DEBE capturarlas y mapearlas a un `Failure` (ej. `ServerFailure`,
+  `NetworkFailure`) antes de retornarlas — Domain y Presentation nunca reciben ni conocen tipos de
+  excepción de Firebase. La misma regla aplica a `image_picker`, `flutter_image_compress`,
+  `geolocator`, `geocoding` y `permission_handler`: una denegación de permiso (cámara, galería,
+  ubicación) o cualquier error propio de estos paquetes (ej. GPS deshabilitado, timeout de
+  geocodificación, cancelación del selector de imagen) DEBE capturarse y mapearse a un `Failure` (ej.
+  `PermissionFailure`, `LocationFailure`) dentro del Service/Repository correspondiente antes de
+  cruzar hacia Domain/Presentation — nunca se propaga como excepción cruda ni se maneja con
+  `try/catch` directamente en el Notifier.
 
 **Racional**: `Either` hace el manejo de errores parte de la firma del método (visible en tiempo de
 compilación), evitando `try/catch` dispersos e inconsistentes en los Notifiers.
@@ -185,4 +223,4 @@ actualizarse para reflejar la constitución, no al revés).
   aprobarse; cualquier complejidad que se desvíe de esta constitución debe justificarse
   explícitamente en la descripción del PR.
 
-**Version**: 2.1.0 | **Ratified**: 2026-08-24 | **Last Amended**: 2026-08-24
+**Version**: 2.3.0 | **Ratified**: 2026-08-24 | **Last Amended**: 2026-08-25

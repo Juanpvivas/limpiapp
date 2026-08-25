@@ -32,7 +32,7 @@ graph TD
 
     subgraph "Capa Data"
         REPO_IMPL[Repository impl] -.implementa.-> REPO_I
-        REPO_IMPL --> SVC_REMOTE[Service: API Remota]
+        REPO_IMPL --> SVC_REMOTE[Service: API REST / Firebase]
         REPO_IMPL --> SVC_LOCAL[Service: Almacenamiento Local]
     end
 
@@ -89,7 +89,7 @@ class ReportRepositoryImpl implements ReportRepository {
 }
 ```
 
-**Solo Repositories y Services tienen interfaz.** Los Notifiers, AsyncNotifiers y Use Cases son la lógica de negocio en sí misma — no hay una implementación alternativa que intercambiar, y ya son testeables inyectando un Repository fake. Darles también una interfaz sería pura ceremonia. El mismo razonamiento aplica a los wrappers de SDKs de terceros (cámara, geolocalización, mapas, notificaciones push, analytics, almacenamiento local): si la app habla con algo externo y variable, se envuelve detrás de una interfaz.
+**Solo Repositories y Services tienen interfaz.** Los Notifiers, AsyncNotifiers y Use Cases son la lógica de negocio en sí misma — no hay una implementación alternativa que intercambiar, y ya son testeables inyectando un Repository fake. Darles también una interfaz sería pura ceremonia. El mismo razonamiento aplica a los wrappers de SDKs de terceros (cámara vía `image_picker`, ubicación vía `geolocator`/`geocoding`, mapas, notificaciones push, analytics, almacenamiento local): si la app habla con algo externo y variable, se envuelve detrás de una interfaz — ver el Principio I de la constitución para la lista completa de paquetes aprobados para cada capacidad.
 
 ---
 
@@ -140,7 +140,7 @@ lib/
 │   │   └── report_repository_impl.dart
 │   ├── services/
 │   │   ├── api/
-│   │   │   └── report_api_service.dart      # Fuente de datos remota (dio)
+│   │   │   └── report_api_service.dart      # Fuente de datos remota vía dio (API REST) o Firebase (Firestore/Storage), según el backend de la feature
 │   │   └── local/
 │   │       └── report_local_service.dart    # Fuente de datos local (isar/shared_preferences)
 │   └── model/                       # DTOs / modelos de request-response (mapeados a domain models)
@@ -181,9 +181,11 @@ lib/
 * `Failure` es una jerarquía sellada en `domain/models/failure.dart` (`ServerFailure`, `CacheFailure`, `NetworkFailure`, ...).
 * Las excepciones se capturan y se mapean a un `Failure` dentro de la **implementación** del Repository — nunca deben propagarse más allá de la capa Data.
 
-### 4. Red y Parseo de Datos
-* **Cliente**: `dio`, para interceptores de request, cache y renovación de tokens.
-* **Serialización**: los DTOs en `data/model/` usan generación de código (`json_serializable` o `freezed`); el mapeo a `domain/models/` ocurre dentro de la implementación del Repository.
+### 4. Backend, Red y Parseo de Datos
+* **API REST propia o de terceros**: `dio`, para interceptores de request, cache y renovación de tokens.
+* **Backend administrado (Firebase)**: `cloud_firestore` para datos estructurados y `firebase_storage` para archivos binarios (ej. fotos), cuando la feature usa Firebase como backend en vez de una API REST propia.
+* Ambos clientes pueden coexistir en el proyecto — cuál usa cada Service depende de dónde vive el dato de esa feature, no es una elección global única. Las instancias (`FirebaseFirestore.instance`, `FirebaseStorage.instance`, el cliente `dio`) se registran en GetIt igual que cualquier otro Service (ver sección 2).
+* **Serialización**: los DTOs en `data/model/` usan generación de código (`json_serializable` o `freezed`); el mapeo a `domain/models/` ocurre dentro de la implementación del Repository, sin importar si el origen es una API REST o Firebase.
 
 ### 5. Ruteo
 * **Herramienta**: ruteo declarativo vía `go_router`.
@@ -198,7 +200,7 @@ lib/
 3. **Los Repositories no se conocen entre sí**: la coordinación entre repositorios pertenece a un Use Case, no dentro de otro Repository.
 4. **Domain agnóstico de plataforma**: los archivos dentro de `domain/` no deben importar `package:flutter/material.dart` ni ninguna dependencia de UI.
 5. **Los DTOs se quedan en `data/model/`**: solo los tipos de `domain/models/` pueden cruzar hacia `ui/` y `domain/`; los DTOs crudos de API/BD nunca salen de la capa Data.
-6. **Sin excepciones más allá de Data**: toda excepción capturada en un Service/Repository debe mapearse a un `Failure`; un `throw` nunca debe cruzar hacia Domain/Presentation.
+6. **Sin excepciones más allá de Data**: toda excepción capturada en un Service/Repository debe mapearse a un `Failure`; un `throw` nunca debe cruzar hacia Domain/Presentation. Esto incluye las excepciones propias de Firebase (`FirebaseException` y subtipos) cuando la feature usa Firestore/Storage como backend, y las denegaciones de permiso o errores de `image_picker`, `flutter_image_compress`, `geolocator`, `geocoding` y `permission_handler` (ej. `PermissionFailure`, `LocationFailure`).
 7. **`BuildContext` después de `await`**: siempre verificar `context.mounted` inmediatamente antes de usar un `BuildContext` después de un `await`.
 8. **Tamaño de archivo**: máximo 200 líneas por archivo de UI (`*_screen.dart`, `*_widget.dart`); extraer sub-widgets al superarlo.
 9. **Sin Stateful Widgets para lógica**: un widget usa `ConsumerWidget`/`ConsumerStatefulWidget` únicamente cuando lee un provider (`ref.watch`) o despacha acciones a un Notifier; si no lee ningún provider ni Notifier, es `StatelessWidget`/`StatefulWidget`. `StatefulWidget`/`ConsumerStatefulWidget` se reservan además para asuntos locales y aislados (animaciones, controladores de texto).
