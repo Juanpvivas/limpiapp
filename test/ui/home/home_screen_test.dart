@@ -1,13 +1,41 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fpdart/fpdart.dart';
 import 'package:go_router/go_router.dart';
 import 'package:limpiapp/config/routes.dart';
+import 'package:limpiapp/config/service_locator.dart';
+import 'package:limpiapp/domain/models/failure.dart';
+import 'package:limpiapp/domain/repositories/location_repository.dart';
+import 'package:limpiapp/domain/repositories/photo_repository.dart';
+import 'package:limpiapp/domain/repositories/report_repository.dart';
+import 'package:mocktail/mocktail.dart';
+
+class _MockReportRepository extends Mock implements ReportRepository {}
+
+class _MockPhotoRepository extends Mock implements PhotoRepository {}
+
+class _MockLocationRepository extends Mock implements LocationRepository {}
 
 void main() {
+  setUp(() async {
+    await getIt.reset();
+    getIt.registerLazySingleton<ReportRepository>(
+      () => _MockReportRepository(),
+    );
+    getIt.registerLazySingleton<PhotoRepository>(() => _MockPhotoRepository());
+    final locationRepository = _MockLocationRepository();
+    when(() => locationRepository.getCurrentLocation())
+        .thenAnswer((_) async => const Left(PermissionFailure()));
+    getIt.registerLazySingleton<LocationRepository>(() => locationRepository);
+  });
+
   Future<void> pumpAppAt(WidgetTester tester, {String location = '/'}) async {
     final GoRouter router = buildAppRouter();
     router.go(location);
-    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpWidget(
+      ProviderScope(child: MaterialApp.router(routerConfig: router)),
+    );
     await tester.pumpAndSettle();
   }
 
@@ -52,7 +80,7 @@ void main() {
       await tester.tap(find.text('Hacer un reporte'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Próximamente: Crear Reporte'), findsOneWidget);
+      expect(find.text('Nuevo reporte'), findsOneWidget);
     });
 
     testWidgets('"Mis reportes" navega a la lista de reportes', (tester) async {

@@ -4,6 +4,12 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Ibagué Limpia usa la cámara para tomar la foto de un punto sucio al crear un reporte.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Ibagué Limpia accede a tus fotos para que puedas elegir una imagen de un punto sucio al crear un reporte.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Ibagué Limpia usa tu ubicación para capturar automáticamente dónde está el punto sucio que reportas.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

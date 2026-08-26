@@ -1,4 +1,4 @@
-package com.example.limpiapp
+package com.juanpvivas.limpiapp
 
 import io.flutter.embedding.android.FlutterActivity
 

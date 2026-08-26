@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../domain/models/report.dart';
 import '../ui/core/ui/app_bottom_nav_bar.dart';
 import '../ui/home/widgets/home_screen.dart';
 import '../ui/map/widgets/report_map_screen.dart';
+import '../ui/reports/widgets/confirmation_screen.dart';
 import '../ui/reports/widgets/new_report_screen.dart';
 import '../ui/reports/widgets/report_list_screen.dart';
 
@@ -84,6 +86,17 @@ GoRouter buildAppRouter() {
               GoRoute(
                 path: AppTab.reportar.path,
                 builder: (context, state) => const NewReportScreen(),
+                routes: [
+                  // FR-025: solo alcanzable con un Report recibido como
+                  // `extra` de un envío exitoso; si no, redirige a Inicio.
+                  GoRoute(
+                    path: 'confirmacion',
+                    redirect: (context, state) =>
+                        state.extra is Report ? null : AppTab.home.path,
+                    builder: (context, state) =>
+                        ConfirmationScreen(report: state.extra! as Report),
+                  ),
+                ],
               ),
             ],
           ),
