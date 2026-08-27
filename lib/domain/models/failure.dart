@@ -29,3 +29,13 @@ class PermissionFailure extends Failure {
 class LocationFailure extends Failure {
   const LocationFailure([super.message = 'No se pudo obtener la ubicación.']);
 }
+
+/// Falla al leer o escribir en el almacenamiento local del dispositivo
+/// (`shared_preferences`) — ej. el identificador anónimo de dispositivo no
+/// se pudo generar/persistir (caso raro: almacenamiento local no
+/// disponible).
+class CacheFailure extends Failure {
+  const CacheFailure([
+    super.message = 'No se pudo acceder al almacenamiento local.',
+  ]);
+}

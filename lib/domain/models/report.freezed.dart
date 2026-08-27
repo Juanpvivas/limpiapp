@@ -15,12 +15,22 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Report {
 
-/// Formato completo `#IL-{año}-{consecutivo}` (research.md §2), ya
+/// ID del documento de Firestore. Necesario para la ruta
+/// `/mis-reportes/:reportId` y para `watchReportById`.
+ String get id;/// Formato completo `#IL-{año}-{consecutivo}` (research.md §2), ya
 /// listo para mostrar (FR-020).
  String get reportNumber; WasteCategory get category; String get description;/// Dirección final mostrable — `manualAddress` si existe, si no
 /// `automaticAddress` (regla de mapeo en data-model.md).
  String get address;/// URL de descarga de Firebase Storage de la foto ya subida.
- String get photoUrl; DateTime get createdAt;
+ String get photoUrl; DateTime get createdAt;/// Estado de seguimiento. `pendiente` al crearse; solo lo cambia un
+/// mecanismo futuro fuera de alcance (FR-015).
+ ReportStatus get status;/// Identificador anónimo del dispositivo que envió el reporte (FR-003),
+/// llave de filtro de "Mis Reportes" (FR-004).
+ String get deviceId;/// `null` hasta que el reporte pase a "en proceso" (FR-014). Solo
+/// lectura en esta feature.
+ DateTime? get inProgressAt;/// `null` hasta que el reporte pase a "solucionado" (FR-014). Solo
+/// lectura en esta feature.
+ DateTime? get resolvedAt;
 /// Create a copy of Report
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -31,16 +41,16 @@ $ReportCopyWith<Report> get copyWith => _$ReportCopyWithImpl<Report>(this as Rep
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Report&&(identical(other.reportNumber, reportNumber) || other.reportNumber == reportNumber)&&(identical(other.category, category) || other.category == category)&&(identical(other.description, description) || other.description == description)&&(identical(other.address, address) || other.address == address)&&(identical(other.photoUrl, photoUrl) || other.photoUrl == photoUrl)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Report&&(identical(other.id, id) || other.id == id)&&(identical(other.reportNumber, reportNumber) || other.reportNumber == reportNumber)&&(identical(other.category, category) || other.category == category)&&(identical(other.description, description) || other.description == description)&&(identical(other.address, address) || other.address == address)&&(identical(other.photoUrl, photoUrl) || other.photoUrl == photoUrl)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.status, status) || other.status == status)&&(identical(other.deviceId, deviceId) || other.deviceId == deviceId)&&(identical(other.inProgressAt, inProgressAt) || other.inProgressAt == inProgressAt)&&(identical(other.resolvedAt, resolvedAt) || other.resolvedAt == resolvedAt));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,reportNumber,category,description,address,photoUrl,createdAt);
+int get hashCode => Object.hash(runtimeType,id,reportNumber,category,description,address,photoUrl,createdAt,status,deviceId,inProgressAt,resolvedAt);
 
 @override
 String toString() {
-  return 'Report(reportNumber: $reportNumber, category: $category, description: $description, address: $address, photoUrl: $photoUrl, createdAt: $createdAt)';
+  return 'Report(id: $id, reportNumber: $reportNumber, category: $category, description: $description, address: $address, photoUrl: $photoUrl, createdAt: $createdAt, status: $status, deviceId: $deviceId, inProgressAt: $inProgressAt, resolvedAt: $resolvedAt)';
 }
 
 
@@ -51,7 +61,7 @@ abstract mixin class $ReportCopyWith<$Res>  {
   factory $ReportCopyWith(Report value, $Res Function(Report) _then) = _$ReportCopyWithImpl;
 @useResult
 $Res call({
- String reportNumber, WasteCategory category, String description, String address, String photoUrl, DateTime createdAt
+ String id, String reportNumber, WasteCategory category, String description, String address, String photoUrl, DateTime createdAt, ReportStatus status, String deviceId, DateTime? inProgressAt, DateTime? resolvedAt
 });
 
 
@@ -68,15 +78,20 @@ class _$ReportCopyWithImpl<$Res>
 
 /// Create a copy of Report
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? reportNumber = null,Object? category = null,Object? description = null,Object? address = null,Object? photoUrl = null,Object? createdAt = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? reportNumber = null,Object? category = null,Object? description = null,Object? address = null,Object? photoUrl = null,Object? createdAt = null,Object? status = null,Object? deviceId = null,Object? inProgressAt = freezed,Object? resolvedAt = freezed,}) {
   return _then(Report(
-reportNumber: null == reportNumber ? _self.reportNumber : reportNumber // ignore: cast_nullable_to_non_nullable
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,reportNumber: null == reportNumber ? _self.reportNumber : reportNumber // ignore: cast_nullable_to_non_nullable
 as String,category: null == category ? _self.category : category // ignore: cast_nullable_to_non_nullable
 as WasteCategory,description: null == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as String,address: null == address ? _self.address : address // ignore: cast_nullable_to_non_nullable
 as String,photoUrl: null == photoUrl ? _self.photoUrl : photoUrl // ignore: cast_nullable_to_non_nullable
 as String,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
-as DateTime,
+as DateTime,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as ReportStatus,deviceId: null == deviceId ? _self.deviceId : deviceId // ignore: cast_nullable_to_non_nullable
+as String,inProgressAt: freezed == inProgressAt ? _self.inProgressAt : inProgressAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,resolvedAt: freezed == resolvedAt ? _self.resolvedAt : resolvedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,
   ));
 }
 
@@ -161,10 +176,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String reportNumber,  WasteCategory category,  String description,  String address,  String photoUrl,  DateTime createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String reportNumber,  WasteCategory category,  String description,  String address,  String photoUrl,  DateTime createdAt,  ReportStatus status,  String deviceId,  DateTime? inProgressAt,  DateTime? resolvedAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Report() when $default != null:
-return $default(_that.reportNumber,_that.category,_that.description,_that.address,_that.photoUrl,_that.createdAt);case _:
+return $default(_that.id,_that.reportNumber,_that.category,_that.description,_that.address,_that.photoUrl,_that.createdAt,_that.status,_that.deviceId,_that.inProgressAt,_that.resolvedAt);case _:
   return orElse();
 
 }
@@ -182,10 +197,10 @@ return $default(_that.reportNumber,_that.category,_that.description,_that.addres
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String reportNumber,  WasteCategory category,  String description,  String address,  String photoUrl,  DateTime createdAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String reportNumber,  WasteCategory category,  String description,  String address,  String photoUrl,  DateTime createdAt,  ReportStatus status,  String deviceId,  DateTime? inProgressAt,  DateTime? resolvedAt)  $default,) {final _that = this;
 switch (_that) {
 case _Report():
-return $default(_that.reportNumber,_that.category,_that.description,_that.address,_that.photoUrl,_that.createdAt);case _:
+return $default(_that.id,_that.reportNumber,_that.category,_that.description,_that.address,_that.photoUrl,_that.createdAt,_that.status,_that.deviceId,_that.inProgressAt,_that.resolvedAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -202,10 +217,10 @@ return $default(_that.reportNumber,_that.category,_that.description,_that.addres
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String reportNumber,  WasteCategory category,  String description,  String address,  String photoUrl,  DateTime createdAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String reportNumber,  WasteCategory category,  String description,  String address,  String photoUrl,  DateTime createdAt,  ReportStatus status,  String deviceId,  DateTime? inProgressAt,  DateTime? resolvedAt)?  $default,) {final _that = this;
 switch (_that) {
 case _Report() when $default != null:
-return $default(_that.reportNumber,_that.category,_that.description,_that.address,_that.photoUrl,_that.createdAt);case _:
+return $default(_that.id,_that.reportNumber,_that.category,_that.description,_that.address,_that.photoUrl,_that.createdAt,_that.status,_that.deviceId,_that.inProgressAt,_that.resolvedAt);case _:
   return null;
 
 }
@@ -217,9 +232,12 @@ return $default(_that.reportNumber,_that.category,_that.description,_that.addres
 
 
 class _Report implements Report {
-  const _Report({required this.reportNumber, required this.category, required this.description, required this.address, required this.photoUrl, required this.createdAt});
+  const _Report({required this.id, required this.reportNumber, required this.category, required this.description, required this.address, required this.photoUrl, required this.createdAt, required this.status, required this.deviceId, this.inProgressAt, this.resolvedAt});
   
 
+/// ID del documento de Firestore. Necesario para la ruta
+/// `/mis-reportes/:reportId` y para `watchReportById`.
+@override final  String id;
 /// Formato completo `#IL-{año}-{consecutivo}` (research.md §2), ya
 /// listo para mostrar (FR-020).
 @override final  String reportNumber;
@@ -231,6 +249,18 @@ class _Report implements Report {
 /// URL de descarga de Firebase Storage de la foto ya subida.
 @override final  String photoUrl;
 @override final  DateTime createdAt;
+/// Estado de seguimiento. `pendiente` al crearse; solo lo cambia un
+/// mecanismo futuro fuera de alcance (FR-015).
+@override final  ReportStatus status;
+/// Identificador anónimo del dispositivo que envió el reporte (FR-003),
+/// llave de filtro de "Mis Reportes" (FR-004).
+@override final  String deviceId;
+/// `null` hasta que el reporte pase a "en proceso" (FR-014). Solo
+/// lectura en esta feature.
+@override final  DateTime? inProgressAt;
+/// `null` hasta que el reporte pase a "solucionado" (FR-014). Solo
+/// lectura en esta feature.
+@override final  DateTime? resolvedAt;
 
 /// Create a copy of Report
 /// with the given fields replaced by the non-null parameter values.
@@ -242,16 +272,16 @@ _$ReportCopyWith<_Report> get copyWith => __$ReportCopyWithImpl<_Report>(this, _
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Report&&(identical(other.reportNumber, reportNumber) || other.reportNumber == reportNumber)&&(identical(other.category, category) || other.category == category)&&(identical(other.description, description) || other.description == description)&&(identical(other.address, address) || other.address == address)&&(identical(other.photoUrl, photoUrl) || other.photoUrl == photoUrl)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Report&&(identical(other.id, id) || other.id == id)&&(identical(other.reportNumber, reportNumber) || other.reportNumber == reportNumber)&&(identical(other.category, category) || other.category == category)&&(identical(other.description, description) || other.description == description)&&(identical(other.address, address) || other.address == address)&&(identical(other.photoUrl, photoUrl) || other.photoUrl == photoUrl)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.status, status) || other.status == status)&&(identical(other.deviceId, deviceId) || other.deviceId == deviceId)&&(identical(other.inProgressAt, inProgressAt) || other.inProgressAt == inProgressAt)&&(identical(other.resolvedAt, resolvedAt) || other.resolvedAt == resolvedAt));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,reportNumber,category,description,address,photoUrl,createdAt);
+int get hashCode => Object.hash(runtimeType,id,reportNumber,category,description,address,photoUrl,createdAt,status,deviceId,inProgressAt,resolvedAt);
 
 @override
 String toString() {
-  return 'Report(reportNumber: $reportNumber, category: $category, description: $description, address: $address, photoUrl: $photoUrl, createdAt: $createdAt)';
+  return 'Report(id: $id, reportNumber: $reportNumber, category: $category, description: $description, address: $address, photoUrl: $photoUrl, createdAt: $createdAt, status: $status, deviceId: $deviceId, inProgressAt: $inProgressAt, resolvedAt: $resolvedAt)';
 }
 
 
@@ -262,7 +292,7 @@ abstract mixin class _$ReportCopyWith<$Res> implements $ReportCopyWith<$Res> {
   factory _$ReportCopyWith(_Report value, $Res Function(_Report) _then) = __$ReportCopyWithImpl;
 @override @useResult
 $Res call({
- String reportNumber, WasteCategory category, String description, String address, String photoUrl, DateTime createdAt
+ String id, String reportNumber, WasteCategory category, String description, String address, String photoUrl, DateTime createdAt, ReportStatus status, String deviceId, DateTime? inProgressAt, DateTime? resolvedAt
 });
 
 
@@ -279,15 +309,20 @@ class __$ReportCopyWithImpl<$Res>
 
 /// Create a copy of Report
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? reportNumber = null,Object? category = null,Object? description = null,Object? address = null,Object? photoUrl = null,Object? createdAt = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? reportNumber = null,Object? category = null,Object? description = null,Object? address = null,Object? photoUrl = null,Object? createdAt = null,Object? status = null,Object? deviceId = null,Object? inProgressAt = freezed,Object? resolvedAt = freezed,}) {
   return _then(_Report(
-reportNumber: null == reportNumber ? _self.reportNumber : reportNumber // ignore: cast_nullable_to_non_nullable
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,reportNumber: null == reportNumber ? _self.reportNumber : reportNumber // ignore: cast_nullable_to_non_nullable
 as String,category: null == category ? _self.category : category // ignore: cast_nullable_to_non_nullable
 as WasteCategory,description: null == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as String,address: null == address ? _self.address : address // ignore: cast_nullable_to_non_nullable
 as String,photoUrl: null == photoUrl ? _self.photoUrl : photoUrl // ignore: cast_nullable_to_non_nullable
 as String,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
-as DateTime,
+as DateTime,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as ReportStatus,deviceId: null == deviceId ? _self.deviceId : deviceId // ignore: cast_nullable_to_non_nullable
+as String,inProgressAt: freezed == inProgressAt ? _self.inProgressAt : inProgressAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,resolvedAt: freezed == resolvedAt ? _self.resolvedAt : resolvedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,
   ));
 }
 
