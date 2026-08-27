@@ -5,6 +5,8 @@ import 'package:fpdart/fpdart.dart';
 import '../../domain/models/failure.dart';
 import '../../domain/models/new_report_draft.dart';
 import '../../domain/models/report.dart';
+import '../../domain/models/report_status.dart';
+import '../../domain/repositories/device_identifier_repository.dart';
 import '../../domain/repositories/report_repository.dart';
 import '../model/report_dto.dart';
 import '../services/firebase/report_firestore_service.dart';
@@ -19,13 +21,27 @@ class ReportRepositoryImpl implements ReportRepository {
   ReportRepositoryImpl({
     required this.firestoreService,
     required this.storageService,
+    required this.deviceIdentifierRepository,
   });
 
   final ReportFirestoreService firestoreService;
   final ReportStorageService storageService;
+  final DeviceIdentifierRepository deviceIdentifierRepository;
 
   @override
   Future<Either<Failure, Report>> submitReport(NewReportDraft draft) async {
+    // "Mis Reportes" (003): cada reporte se etiqueta con el identificador
+    // anónimo del dispositivo que lo envía (FR-003). Si el almacenamiento
+    // local falla, el envío falla con ese mismo `Failure`.
+    final deviceIdResult = await deviceIdentifierRepository.getDeviceId();
+    final deviceId = deviceIdResult.match((_) => null, (id) => id);
+    if (deviceId == null) {
+      return deviceIdResult.match(
+        (failure) => Left<Failure, Report>(failure),
+        (_) => const Left(CacheFailure()),
+      );
+    }
+
     final docId = firestoreService.reserveDocId();
 
     final String photoUrl;
@@ -52,16 +68,21 @@ class ReportRepositoryImpl implements ReportRepository {
           location: draft.location,
           address: address,
           photoUrl: photoUrl,
+          status: ReportStatus.pendiente,
+          deviceId: deviceId,
         ),
       );
 
       return Right(
         ReportDto.fromSubmission(
+          id: docId,
           reportNumber: reportNumber,
           category: draft.category,
           description: draft.description,
           address: address,
           photoUrl: photoUrl,
+          status: ReportStatus.pendiente,
+          deviceId: deviceId,
         ),
       );
     } on FirebaseException catch (e) {

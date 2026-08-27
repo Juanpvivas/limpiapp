@@ -3,18 +3,24 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:get_it/get_it.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../data/repositories/device_identifier_repository_impl.dart';
 import '../data/repositories/location_repository_impl.dart';
 import '../data/repositories/photo_repository_impl.dart';
+import '../data/repositories/report_list_repository_impl.dart';
 import '../data/repositories/report_repository_impl.dart';
+import '../data/services/device_identifier_service.dart';
 import '../data/services/firebase/report_firestore_service.dart';
+import '../data/services/firebase/report_query_service.dart';
 import '../data/services/firebase/report_storage_service.dart';
 import '../data/services/location/geocoding_service.dart';
 import '../data/services/location/geolocation_service.dart';
 import '../data/services/permission_service.dart';
 import '../data/services/photo/photo_capture_service.dart';
 import '../data/services/photo/photo_compressor_service.dart';
+import '../domain/repositories/device_identifier_repository.dart';
 import '../domain/repositories/location_repository.dart';
 import '../domain/repositories/photo_repository.dart';
+import '../domain/repositories/report_list_repository.dart';
 import '../domain/repositories/report_repository.dart';
 
 /// Único `ServiceLocator` del proyecto (Principio V de la constitución):
@@ -36,8 +42,12 @@ void setupServiceLocator() {
     () => ReportFirestoreService(getIt<FirebaseFirestore>()),
   );
   getIt.registerLazySingleton(
+    () => ReportQueryService(getIt<FirebaseFirestore>()),
+  );
+  getIt.registerLazySingleton(
     () => ReportStorageService(getIt<FirebaseStorage>()),
   );
+  getIt.registerLazySingleton(() => DeviceIdentifierService());
   getIt.registerLazySingleton(() => PhotoCaptureService(getIt<ImagePicker>()));
   getIt.registerLazySingleton(() => PhotoCompressorService());
   getIt.registerLazySingleton(() => GeolocationService());
@@ -45,11 +55,18 @@ void setupServiceLocator() {
   getIt.registerLazySingleton(() => PermissionService());
 
   // Repositories (interfaz → implementación).
+  getIt.registerLazySingleton<DeviceIdentifierRepository>(
+    () => DeviceIdentifierRepositoryImpl(getIt<DeviceIdentifierService>()),
+  );
   getIt.registerLazySingleton<ReportRepository>(
     () => ReportRepositoryImpl(
       firestoreService: getIt<ReportFirestoreService>(),
       storageService: getIt<ReportStorageService>(),
+      deviceIdentifierRepository: getIt<DeviceIdentifierRepository>(),
     ),
+  );
+  getIt.registerLazySingleton<ReportListRepository>(
+    () => ReportListRepositoryImpl(getIt<ReportQueryService>()),
   );
   getIt.registerLazySingleton<PhotoRepository>(
     () => PhotoRepositoryImpl(

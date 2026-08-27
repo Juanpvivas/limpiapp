@@ -7,6 +7,7 @@ import '../ui/home/widgets/home_screen.dart';
 import '../ui/map/widgets/report_map_screen.dart';
 import '../ui/reports/widgets/confirmation_screen.dart';
 import '../ui/reports/widgets/new_report_screen.dart';
+import '../ui/reports/widgets/report_detail_screen.dart';
 import '../ui/reports/widgets/report_list_screen.dart';
 
 /// Una de las 3 ramas de la barra de navegación inferior. No es un domain
@@ -76,6 +77,20 @@ GoRouter buildAppRouter() {
                   GoRoute(
                     path: 'mis-reportes',
                     builder: (context, state) => const ReportListScreen(),
+                    routes: [
+                      // "Detalle del reporte" (003) — anidada bajo
+                      // /mis-reportes: a diferencia de "Confirmación"
+                      // (issue #28), aquí SÍ corresponde mostrar la barra de
+                      // navegación inferior, por eso queda dentro del shell.
+                      // El `reportId` es el ID del documento de Firestore
+                      // (research.md §5).
+                      GoRoute(
+                        path: ':reportId',
+                        builder: (context, state) => ReportDetailScreen(
+                          reportId: state.pathParameters['reportId']!,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

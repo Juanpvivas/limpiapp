@@ -8,6 +8,7 @@ import 'package:limpiapp/domain/models/failure.dart';
 import 'package:limpiapp/domain/models/new_report_draft.dart';
 import 'package:limpiapp/domain/models/photo.dart';
 import 'package:limpiapp/domain/models/report.dart';
+import 'package:limpiapp/domain/models/report_status.dart';
 import 'package:limpiapp/domain/models/report_location.dart';
 import 'package:limpiapp/domain/models/waste_category.dart';
 import 'package:limpiapp/domain/repositories/location_repository.dart';
@@ -31,12 +32,15 @@ void main() {
   final photo = Photo(bytes: Uint8List.fromList([1, 2, 3]), sizeBytes: 3);
   const autoLocation = ReportLocation(automaticAddress: 'Calle 5 # 10-20');
   final report = Report(
+    id: 'doc123',
     reportNumber: '#IL-2026-000125',
     category: WasteCategory.basuraAcumulada,
     description: '',
     address: 'Calle 5 # 10-20',
     photoUrl: 'https://storage/doc123.jpg',
     createdAt: DateTime(2026),
+    status: ReportStatus.pendiente,
+    deviceId: 'device-abc',
   );
 
   setUpAll(() {

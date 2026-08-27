@@ -6,8 +6,11 @@ import 'package:go_router/go_router.dart';
 import 'package:limpiapp/config/routes.dart';
 import 'package:limpiapp/config/service_locator.dart';
 import 'package:limpiapp/domain/models/failure.dart';
+import 'package:limpiapp/domain/models/report.dart';
+import 'package:limpiapp/domain/repositories/device_identifier_repository.dart';
 import 'package:limpiapp/domain/repositories/location_repository.dart';
 import 'package:limpiapp/domain/repositories/photo_repository.dart';
+import 'package:limpiapp/domain/repositories/report_list_repository.dart';
 import 'package:limpiapp/domain/repositories/report_repository.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -16,6 +19,11 @@ class _MockReportRepository extends Mock implements ReportRepository {}
 class _MockPhotoRepository extends Mock implements PhotoRepository {}
 
 class _MockLocationRepository extends Mock implements LocationRepository {}
+
+class _MockReportListRepository extends Mock implements ReportListRepository {}
+
+class _MockDeviceIdentifierRepository extends Mock
+    implements DeviceIdentifierRepository {}
 
 void main() {
   setUp(() async {
@@ -28,6 +36,20 @@ void main() {
     when(() => locationRepository.getCurrentLocation())
         .thenAnswer((_) async => const Left(PermissionFailure()));
     getIt.registerLazySingleton<LocationRepository>(() => locationRepository);
+
+    final reportListRepository = _MockReportListRepository();
+    when(() => reportListRepository.watchReports(any()))
+        .thenAnswer((_) => Stream.value(const Right(<Report>[])));
+    getIt.registerLazySingleton<ReportListRepository>(
+      () => reportListRepository,
+    );
+
+    final deviceIdentifierRepository = _MockDeviceIdentifierRepository();
+    when(() => deviceIdentifierRepository.getDeviceId())
+        .thenAnswer((_) async => const Right('test-device'));
+    getIt.registerLazySingleton<DeviceIdentifierRepository>(
+      () => deviceIdentifierRepository,
+    );
   });
 
   Future<void> pumpAppAt(WidgetTester tester, {String location = '/'}) async {
@@ -89,7 +111,10 @@ void main() {
       await tester.tap(find.text('Mis reportes'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Próximamente: Mis Reportes'), findsOneWidget);
+      // Pantalla real de "Mis reportes": AppBar propio + estado vacío
+      // general (el dispositivo de prueba no tiene reportes).
+      expect(find.widgetWithText(AppBar, 'Mis reportes'), findsOneWidget);
+      expect(find.textContaining('Aún no has enviado'), findsOneWidget);
     });
 
     testWidgets('"Mapa de reportes" navega al mapa', (tester) async {
