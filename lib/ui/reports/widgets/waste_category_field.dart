@@ -17,7 +17,7 @@ class WasteCategoryField extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '¿Qué tipo de residuo es?',
+          '2. ¿Qué tipo de residuo es?',
           style: Theme.of(context).textTheme.titleMedium,
         ),
         const SizedBox(height: 8),

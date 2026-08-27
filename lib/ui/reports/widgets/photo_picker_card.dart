@@ -17,7 +17,10 @@ class PhotoPickerCard extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Toma una foto', style: Theme.of(context).textTheme.titleMedium),
+        Text(
+          '1. Toma una foto',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
         const SizedBox(height: 8),
         AspectRatio(
           aspectRatio: 4 / 3,

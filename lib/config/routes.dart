@@ -86,17 +86,6 @@ GoRouter buildAppRouter() {
               GoRoute(
                 path: AppTab.reportar.path,
                 builder: (context, state) => const NewReportScreen(),
-                routes: [
-                  // FR-025: solo alcanzable con un Report recibido como
-                  // `extra` de un envío exitoso; si no, redirige a Inicio.
-                  GoRoute(
-                    path: 'confirmacion',
-                    redirect: (context, state) =>
-                        state.extra is Report ? null : AppTab.home.path,
-                    builder: (context, state) =>
-                        ConfirmationScreen(report: state.extra! as Report),
-                  ),
-                ],
               ),
             ],
           ),
@@ -109,6 +98,20 @@ GoRouter buildAppRouter() {
             ],
           ),
         ],
+      ),
+      // Ruta top-level, hermana del shell (no anidada en ninguna rama): así
+      // renderiza sin la barra de navegación inferior, igual que el mock
+      // (issue #28 — `StatefulShellRoute.indexedStack` envuelve en su propio
+      // `Scaffold` con bottom nav a cualquier ruta anidada dentro de una
+      // rama, aunque esa ruta sea "de paso" como esta).
+      // FR-025: solo alcanzable con un Report recibido como `extra` de un
+      // envío exitoso; si no, redirige a Inicio.
+      GoRoute(
+        path: '${AppTab.reportar.path}/confirmacion',
+        redirect: (context, state) =>
+            state.extra is Report ? null : AppTab.home.path,
+        builder: (context, state) =>
+            ConfirmationScreen(report: state.extra! as Report),
       ),
     ],
   );

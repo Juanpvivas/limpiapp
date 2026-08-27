@@ -38,7 +38,7 @@ class _LocationSectionState extends ConsumerState<LocationSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Ubicación', style: Theme.of(context).textTheme.titleMedium),
+        Text('4. Ubicación', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         if (isLoading)
           const Row(

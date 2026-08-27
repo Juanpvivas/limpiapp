@@ -50,7 +50,7 @@ class NewReportScreen extends ConsumerWidget {
                     const WasteCategoryField(),
                     const SizedBox(height: 24),
                     Text(
-                      'Descripción',
+                      '3. Descripción (opcional)',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 8),
@@ -67,7 +67,7 @@ class NewReportScreen extends ConsumerWidget {
                     const SizedBox(height: 32),
                     FilledButton(
                       onPressed: state.canSubmit && !state.isSubmitting
-                          ? () => _handleSubmit(context, notifier)
+                          ? () => _handleSubmit(context, ref, notifier)
                           : null,
                       child: const Text('Enviar reporte'),
                     ),
@@ -87,10 +87,16 @@ class NewReportScreen extends ConsumerWidget {
 
   Future<void> _handleSubmit(
     BuildContext context,
+    WidgetRef ref,
     NewReportNotifier notifier,
   ) async {
     final report = await notifier.submit();
     if (report != null && context.mounted) {
+      // `StatefulShellRoute.indexedStack` mantiene esta pantalla montada
+      // entre pestañas (feature 001), así que `newReportProvider` (autoDispose)
+      // nunca perdería su listener por sí solo — se invalida explícitamente
+      // para que el próximo "Nuevo reporte" arranque en blanco (issue #27).
+      ref.invalidate(newReportProvider);
       context.push('/reportar/confirmacion', extra: report);
     }
   }
