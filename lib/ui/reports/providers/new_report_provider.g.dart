@@ -47,7 +47,7 @@ final class NewReportNotifierProvider
   }
 }
 
-String _$newReportNotifierHash() => r'4c10632314ef1d93ed5742bd9104a53281adb381';
+String _$newReportNotifierHash() => r'94df09870fd6fe3a62a56483e4f060f409c05e3d';
 
 /// Lógica de presentación de "Nuevo reporte": resuelve sus dependencias vía
 /// `getIt<T>()` (Principio V) y nunca importa `lib/data/` (Principio IV.2).

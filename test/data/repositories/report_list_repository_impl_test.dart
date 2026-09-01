@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:limpiapp/data/repositories/report_list_repository_impl.dart';
+import 'package:limpiapp/data/services/connectivity_service.dart';
 import 'package:limpiapp/data/services/firebase/report_query_service.dart';
 import 'package:limpiapp/domain/models/failure.dart';
 import 'package:limpiapp/domain/models/report.dart';
@@ -12,6 +13,8 @@ import 'package:limpiapp/domain/models/waste_category.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockReportQueryService extends Mock implements ReportQueryService {}
+
+class _MockConnectivityService extends Mock implements ConnectivityService {}
 
 Map<String, dynamic> _doc({
   String reportNumber = '#IL-2026-000001',
@@ -43,11 +46,13 @@ Map<String, dynamic> _doc({
 
 void main() {
   late _MockReportQueryService queryService;
+  late _MockConnectivityService connectivity;
   late ReportListRepositoryImpl repository;
 
   setUp(() {
     queryService = _MockReportQueryService();
-    repository = ReportListRepositoryImpl(queryService);
+    connectivity = _MockConnectivityService();
+    repository = ReportListRepositoryImpl(queryService, connectivity);
   });
 
   group('watchReports', () {
@@ -139,6 +144,7 @@ void main() {
           .thenAnswer((_) => upstream.stream);
       final repo = ReportListRepositoryImpl(
         queryService,
+        connectivity,
         firstSnapshotTimeout: const Duration(milliseconds: 40),
       );
 
@@ -160,6 +166,7 @@ void main() {
             .thenAnswer((_) => upstream.stream);
         final repo = ReportListRepositoryImpl(
           queryService,
+          connectivity,
           firstSnapshotTimeout: const Duration(milliseconds: 40),
         );
 
@@ -200,5 +207,56 @@ void main() {
         (report) => expect(report, isNull),
       );
     });
+  });
+
+  group('reporte de conectividad (feature 005 / T023)', () {
+    test(
+      'el timeout de primera emisión llama reportBackendUnreachable()',
+      () async {
+        final upstream = StreamController<List<FirestoreRecord>>();
+        addTearDown(upstream.close);
+        when(() => queryService.watchReportsByDevice(any()))
+            .thenAnswer((_) => upstream.stream);
+        final repo = ReportListRepositoryImpl(
+          queryService,
+          connectivity,
+          firstSnapshotTimeout: const Duration(milliseconds: 40),
+        );
+
+        await repo.watchReports('device-1').first;
+
+        verify(connectivity.reportBackendUnreachable).called(1);
+        verifyNever(connectivity.reportBackendReachable);
+      },
+    );
+
+    test('la primera emisión Right llama reportBackendReachable()', () async {
+      when(() => queryService.watchReportsByDevice('device-1'))
+          .thenAnswer((_) => Stream.value([(id: 'a', data: _doc())]));
+
+      await repository.watchReports('device-1').first;
+
+      verify(connectivity.reportBackendReachable).called(1);
+      verifyNever(connectivity.reportBackendUnreachable);
+    });
+
+    test(
+      'un Left(ServerFailure) no toca el contador (el backend respondió)',
+      () async {
+        when(() => queryService.watchReportsByDevice(any())).thenAnswer(
+          (_) => Stream<List<FirestoreRecord>>.error(
+            FirebaseException(
+              plugin: 'cloud_firestore',
+              code: 'permission-denied',
+            ),
+          ),
+        );
+
+        await repository.watchReports('device-1').first;
+
+        verifyNever(connectivity.reportBackendReachable);
+        verifyNever(connectivity.reportBackendUnreachable);
+      },
+    );
   });
 }

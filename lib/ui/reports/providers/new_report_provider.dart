@@ -2,6 +2,7 @@ import 'package:fpdart/fpdart.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../config/service_locator.dart';
+import '../../../domain/models/connectivity_status.dart';
 import '../../../domain/models/failure.dart';
 import '../../../domain/models/new_report_draft.dart';
 import '../../../domain/models/photo.dart';
@@ -10,9 +11,14 @@ import '../../../domain/models/waste_category.dart';
 import '../../../domain/repositories/location_repository.dart';
 import '../../../domain/repositories/photo_repository.dart';
 import '../../../domain/repositories/report_repository.dart';
+import '../../core/offline_copy.dart';
+import '../../core/providers/connectivity_provider.dart';
 import 'new_report_state.dart';
 
 part 'new_report_provider.g.dart';
+
+/// Mensaje genérico de fallo de envío (backend que responde con error).
+const _kGenericSubmitError = 'No se pudo enviar el reporte. Intenta de nuevo.';
 
 /// Lógica de presentación de "Nuevo reporte": resuelve sus dependencias vía
 /// `getIt<T>()` (Principio V) y nunca importa `lib/data/` (Principio IV.2).
@@ -91,6 +97,13 @@ class NewReportNotifier extends _$NewReportNotifier {
   Future<Report?> submit() async {
     if (!state.canSubmit || state.isSubmitting) return null;
 
+    // FR-013: si ya se sabe que no hay conexión, fallar rápido sin tocar
+    // Storage/Firestore. `isSubmitting` nunca pasa a `true`.
+    if (_isOffline) {
+      state = state.copyWith(submitError: kOfflineSubmitErrorText);
+      return null;
+    }
+
     state = state.copyWith(isSubmitting: true, submitError: null);
 
     final draft = NewReportDraft(
@@ -104,12 +117,15 @@ class NewReportNotifier extends _$NewReportNotifier {
 
     return result.match(
       (failure) {
-        // FR-017/SC-004: solo se actualizan estas 2 banderas — el resto del
+        // FR-015/SC-005: solo se actualizan estas 2 banderas — el resto del
         // formulario (foto, categoría, descripción, ubicación) permanece
-        // intacto para poder reintentar sin perder datos.
+        // intacto para poder reintentar sin perder datos. Aplica también al
+        // camino de timeout (`Left(NetworkFailure)`).
         state = state.copyWith(
           isSubmitting: false,
-          submitError: 'No se pudo enviar el reporte. Intenta de nuevo.',
+          submitError: (failure is NetworkFailure || _isOffline)
+              ? kOfflineSubmitErrorText // FR-018
+              : _kGenericSubmitError,
         );
         return null;
       },
@@ -119,4 +135,7 @@ class NewReportNotifier extends _$NewReportNotifier {
       },
     );
   }
+
+  bool get _isOffline =>
+      ref.read(connectivityStatusProvider).value == ConnectivityStatus.offline;
 }

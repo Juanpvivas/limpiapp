@@ -15,7 +15,10 @@ import 'package:limpiapp/domain/models/report_location.dart';
 import 'package:limpiapp/domain/models/waste_category.dart';
 import 'package:limpiapp/domain/repositories/location_repository.dart';
 import 'package:limpiapp/domain/repositories/photo_repository.dart';
+import 'package:limpiapp/domain/models/connectivity_status.dart';
+import 'package:limpiapp/domain/repositories/connectivity_repository.dart';
 import 'package:limpiapp/domain/repositories/report_repository.dart';
+import 'package:limpiapp/ui/core/offline_copy.dart';
 import 'package:limpiapp/ui/reports/widgets/new_report_screen.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -24,6 +27,9 @@ class _MockReportRepository extends Mock implements ReportRepository {}
 class _MockPhotoRepository extends Mock implements PhotoRepository {}
 
 class _MockLocationRepository extends Mock implements LocationRepository {}
+
+class _MockConnectivityRepository extends Mock
+    implements ConnectivityRepository {}
 
 void main() {
   late _MockReportRepository reportRepository;
@@ -177,6 +183,10 @@ void main() {
     getIt.registerLazySingleton<ReportRepository>(() => reportRepository);
     getIt.registerLazySingleton<PhotoRepository>(() => photoRepository);
     getIt.registerLazySingleton<LocationRepository>(() => locationRepository);
+    final connectivityRepo = _MockConnectivityRepository();
+    when(connectivityRepo.watch)
+        .thenAnswer((_) => Stream.value(ConnectivityStatus.online));
+    getIt.registerLazySingleton<ConnectivityRepository>(() => connectivityRepo);
 
     when(() => locationRepository.getCurrentLocation())
         .thenAnswer((_) async => const Right(autoLocation));
@@ -304,10 +314,7 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Enviar reporte'));
       await tester.pumpAndSettle();
 
-      expect(
-        find.text('No se pudo enviar el reporte. Intenta de nuevo.'),
-        findsOneWidget,
-      );
+      expect(find.text(kOfflineSubmitErrorText), findsOneWidget);
       expect(find.text('Nuevo reporte'), findsOneWidget);
       // Los datos siguen ahí: la foto sigue mostrada y el botón vuelve a
       // habilitarse (canSubmit no cambió).

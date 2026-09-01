@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:fpdart/fpdart.dart';
@@ -9,6 +11,7 @@ import '../../domain/models/report_status.dart';
 import '../../domain/repositories/device_identifier_repository.dart';
 import '../../domain/repositories/report_repository.dart';
 import '../model/report_dto.dart';
+import '../services/connectivity_service.dart';
 import '../services/firebase/report_firestore_service.dart';
 import '../services/firebase/report_storage_service.dart';
 
@@ -17,16 +20,27 @@ import '../services/firebase/report_storage_service.dart';
 /// borra la foto como compensación de mejor esfuerzo si la transacción
 /// falla. Toda excepción de Firebase se captura y mapea a un `Failure` —
 /// nunca cruza como excepción cruda (Principio V de la constitución).
+///
+/// Feature 005: cada paso de red se acota con [_sendTimeout]; un
+/// `TimeoutException` se trata como falta de conexión (`Left(NetworkFailure)`)
+/// para que el usuario nunca quede en "enviando…" indefinido (FR-013/FR-014).
+/// El resultado se reporta al [ConnectivityService] (llegó / no llegó al
+/// backend).
 class ReportRepositoryImpl implements ReportRepository {
   ReportRepositoryImpl({
     required this.firestoreService,
     required this.storageService,
     required this.deviceIdentifierRepository,
-  });
+    required this.connectivityService,
+    Duration sendTimeout = const Duration(seconds: 10),
+    // ignore: prefer_initializing_formals
+  }) : _sendTimeout = sendTimeout;
 
   final ReportFirestoreService firestoreService;
   final ReportStorageService storageService;
   final DeviceIdentifierRepository deviceIdentifierRepository;
+  final ConnectivityService connectivityService;
+  final Duration _sendTimeout;
 
   @override
   Future<Either<Failure, Report>> submitReport(NewReportDraft draft) async {
@@ -46,7 +60,12 @@ class ReportRepositoryImpl implements ReportRepository {
 
     final String photoUrl;
     try {
-      photoUrl = await storageService.upload(docId, draft.photo.bytes);
+      photoUrl = await storageService
+          .upload(docId, draft.photo.bytes)
+          .timeout(_sendTimeout);
+    } on TimeoutException {
+      connectivityService.reportBackendUnreachable();
+      return const Left(NetworkFailure());
     } on FirebaseException catch (e) {
       return Left(_mapFirebaseException(e));
     } catch (_) {
@@ -60,19 +79,22 @@ class ReportRepositoryImpl implements ReportRepository {
         draft.location.manualAddress ?? draft.location.automaticAddress ?? '';
 
     try {
-      final reportNumber = await firestoreService.createReport(
-        docId: docId,
-        reportData: ReportDto.toFirestoreMap(
-          category: draft.category,
-          description: draft.description,
-          location: draft.location,
-          address: address,
-          photoUrl: photoUrl,
-          status: ReportStatus.pendiente,
-          deviceId: deviceId,
-        ),
-      );
+      final reportNumber = await firestoreService
+          .createReport(
+            docId: docId,
+            reportData: ReportDto.toFirestoreMap(
+              category: draft.category,
+              description: draft.description,
+              location: draft.location,
+              address: address,
+              photoUrl: photoUrl,
+              status: ReportStatus.pendiente,
+              deviceId: deviceId,
+            ),
+          )
+          .timeout(_sendTimeout);
 
+      connectivityService.reportBackendReachable();
       return Right(
         ReportDto.fromSubmission(
           id: docId,
@@ -85,9 +107,17 @@ class ReportRepositoryImpl implements ReportRepository {
           deviceId: deviceId,
         ),
       );
+    } on TimeoutException {
+      await _deleteOrphanPhoto(docId);
+      connectivityService.reportBackendUnreachable();
+      return const Left(NetworkFailure());
     } on FirebaseException catch (e) {
       await _deleteOrphanPhoto(docId);
-      return Left(_mapFirebaseException(e));
+      final failure = _mapFirebaseException(e);
+      if (failure is NetworkFailure) {
+        connectivityService.reportBackendUnreachable();
+      }
+      return Left(failure);
     } catch (_) {
       await _deleteOrphanPhoto(docId);
       return const Left(ServerFailure());
@@ -96,10 +126,11 @@ class ReportRepositoryImpl implements ReportRepository {
 
   Future<void> _deleteOrphanPhoto(String docId) async {
     try {
-      await storageService.delete(docId);
+      await storageService.delete(docId).timeout(const Duration(seconds: 5));
     } catch (_) {
       // Compensación de mejor esfuerzo (research.md §4): el resultado no
-      // afecta el Failure ya determinado por el error original.
+      // afecta el Failure ya determinado por el error original. Sin conexión
+      // puede quedar un blob huérfano — limitación aceptada (feature 002).
     }
   }
 

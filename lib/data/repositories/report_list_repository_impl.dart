@@ -7,6 +7,7 @@ import '../../domain/models/failure.dart';
 import '../../domain/models/report.dart';
 import '../../domain/repositories/report_list_repository.dart';
 import '../model/report_dto.dart';
+import '../services/connectivity_service.dart';
 import '../services/firebase/report_query_service.dart';
 
 /// Mapea los streams planos de `ReportQueryService` a `Report` (vía
@@ -23,12 +24,18 @@ import '../services/firebase/report_query_service.dart';
 /// desarma tras la primera emisión: un stream en tiempo real puede quedarse
 /// legítimamente quieto sin que eso sea un fallo (`watchReportById` incluido:
 /// `Right(null)` de "no existe" también cuenta como primera emisión).
+///
+/// Feature 005: cada emisión reporta al [ConnectivityService] si se pudo o no
+/// llegar al backend — `Left(NetworkFailure)` → `reportBackendUnreachable()`,
+/// cualquier `Right` → `reportBackendReachable()`, `Left(ServerFailure)` no
+/// toca el contador (el backend respondió).
 class ReportListRepositoryImpl implements ReportListRepository {
   // Param con nombre público a propósito: Dart no permite
   // `this._firstSnapshotTimeout` como parámetro con nombre privado, así que
   // no se puede usar un initializing formal aquí.
   ReportListRepositoryImpl(
-    this._queryService, {
+    this._queryService,
+    this._connectivity, {
     Duration firstSnapshotTimeout = defaultFirstSnapshotTimeout,
     // ignore: prefer_initializing_formals
   }) : _firstSnapshotTimeout = firstSnapshotTimeout;
@@ -40,6 +47,7 @@ class ReportListRepositoryImpl implements ReportListRepository {
   static const defaultFirstSnapshotTimeout = Duration(seconds: 10);
 
   final ReportQueryService _queryService;
+  final ConnectivityService _connectivity;
   final Duration _firstSnapshotTimeout;
 
   @override
@@ -70,7 +78,7 @@ class ReportListRepositoryImpl implements ReportListRepository {
     return _failIfNoFirstEvent(
       reports,
       const Left<Failure, List<Report>>(NetworkFailure()),
-    );
+    ).map(_reportConnectivity);
   }
 
   @override
@@ -96,7 +104,16 @@ class ReportListRepositoryImpl implements ReportListRepository {
     return _failIfNoFirstEvent(
       report,
       const Left<Failure, Report?>(NetworkFailure()),
-    );
+    ).map(_reportConnectivity);
+  }
+
+  /// Alimenta el contador de conectividad (feature 005) a partir de cada
+  /// emisión, y la reemite tal cual.
+  Either<Failure, T> _reportConnectivity<T>(Either<Failure, T> result) {
+    result.match((failure) {
+      if (failure is NetworkFailure) _connectivity.reportBackendUnreachable();
+    }, (_) => _connectivity.reportBackendReachable());
+    return result;
   }
 
   Failure _mapError(Object error) {

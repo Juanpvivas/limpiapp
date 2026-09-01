@@ -16,8 +16,11 @@ import 'package:limpiapp/domain/models/waste_category.dart';
 import 'package:limpiapp/domain/repositories/device_identifier_repository.dart';
 import 'package:limpiapp/domain/repositories/report_list_repository.dart';
 import 'package:limpiapp/ui/map/providers/selected_map_report_provider.dart';
+import 'package:limpiapp/domain/models/connectivity_status.dart';
+import 'package:limpiapp/ui/core/offline_copy.dart';
+import 'package:limpiapp/ui/core/providers/connectivity_provider.dart';
+import 'package:limpiapp/ui/core/ui/data_error_state.dart';
 import 'package:limpiapp/ui/map/widgets/map_empty_overlay.dart';
-import 'package:limpiapp/ui/map/widgets/map_error_state.dart';
 import 'package:limpiapp/ui/map/widgets/map_legend.dart';
 import 'package:limpiapp/ui/map/widgets/map_marker_cluster_layer.dart';
 import 'package:limpiapp/ui/map/widgets/report_map_screen.dart';
@@ -77,10 +80,20 @@ void main() {
         .thenAnswer((_) async => const Right('d1'));
   });
 
-  Future<ProviderContainer> pumpMap(WidgetTester tester) async {
+  Future<ProviderContainer> pumpMap(
+    WidgetTester tester, {
+    ConnectivityStatus connectivity = ConnectivityStatus.online,
+  }) async {
     // Sin reintentos automáticos: un provider en error, si no, deja un Timer
     // de backoff pendiente al desmontar el árbol (rompe el test).
-    final container = ProviderContainer(retry: (_, _) => null);
+    final container = ProviderContainer(
+      retry: (_, _) => null,
+      overrides: [
+        connectivityStatusProvider.overrideWith(
+          (ref) => Stream.value(connectivity),
+        ),
+      ],
+    );
     addTearDown(container.dispose);
     final router = GoRouter(
       initialLocation: '/mapa',
@@ -119,7 +132,14 @@ void main() {
   ) async {
     when(() => listRepository.watchReports('d1'))
         .thenAnswer((_) => const Stream.empty());
-    final container = ProviderContainer(retry: (_, _) => null);
+    final container = ProviderContainer(
+      retry: (_, _) => null,
+      overrides: [
+        connectivityStatusProvider.overrideWith(
+          (ref) => Stream.value(ConnectivityStatus.online),
+        ),
+      ],
+    );
     addTearDown(container.dispose);
     final router = GoRouter(
       routes: [
@@ -140,7 +160,7 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 
-  testWidgets('estado de error: muestra MapErrorState con "Reintentar"', (
+  testWidgets('error de servidor: DataErrorState con mensaje genérico', (
     tester,
   ) async {
     when(() => listRepository.watchReports('d1'))
@@ -148,8 +168,29 @@ void main() {
 
     await pumpMap(tester);
 
-    expect(find.byType(MapErrorState), findsOneWidget);
-    expect(find.text('Reintentar'), findsOneWidget);
+    expect(find.byType(DataErrorState), findsOneWidget);
+    expect(find.text(kRetryLabel), findsOneWidget);
+    expect(find.text(kGenericServerErrorText), findsOneWidget);
+  });
+
+  testWidgets('NetworkFailure → DataErrorState con mensaje de sin conexión '
+      '(FR-007)', (tester) async {
+    when(() => listRepository.watchReports('d1'))
+        .thenAnswer((_) => Stream.value(const Left(NetworkFailure())));
+
+    await pumpMap(tester);
+
+    expect(find.text(kOfflineReadErrorText), findsOneWidget);
+  });
+
+  testWidgets('con connectivity offline el mensaje es el de sin conexión '
+      'aunque el Failure sea de servidor (FR-007)', (tester) async {
+    when(() => listRepository.watchReports('d1'))
+        .thenAnswer((_) => Stream.value(const Left(ServerFailure())));
+
+    await pumpMap(tester, connectivity: ConnectivityStatus.offline);
+
+    expect(find.text(kOfflineReadErrorText), findsOneWidget);
   });
 
   testWidgets('sin reportes: mapa + overlay vacío general + leyenda', (

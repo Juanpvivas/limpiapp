@@ -5,11 +5,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../../config/routes.dart';
 import '../../../domain/models/report.dart';
+import '../../core/providers/connectivity_provider.dart';
+import '../../core/read_error_message.dart';
+import '../../core/ui/data_error_state.dart';
 import '../../reports/providers/my_reports_provider.dart';
 import '../providers/map_markers_provider.dart';
 import '../providers/selected_map_report_provider.dart';
 import 'map_empty_overlay.dart';
-import 'map_error_state.dart';
 import 'map_filter_control.dart';
 import 'map_legend.dart';
 import 'map_view.dart';
@@ -34,7 +36,13 @@ class ReportMapScreen extends ConsumerWidget {
         actions: const [MapFilterControl()],
       ),
       body: markersAsync.hasError
-          ? MapErrorState(onRetry: () => ref.invalidate(myReportsProvider))
+          ? DataErrorState(
+              message: readErrorMessage(
+                markersAsync.error,
+                ref.watch(connectivityStatusProvider).value,
+              ),
+              onRetry: () => ref.invalidate(myReportsProvider),
+            )
           : markersAsync.maybeWhen(
               data: (reports) =>
                   _MapBody(reports: reports, tileProvider: tileProvider),
