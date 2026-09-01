@@ -37,6 +37,15 @@ abstract class Report with _$Report {
     /// llave de filtro de "Mis Reportes" (FR-004).
     required String deviceId,
 
+    /// Latitud del punto reportado. `null` si el reporte no registró
+    /// ubicación automática. Ya persistido por "Crear Reporte"
+    /// (`reports.latitude`); "Mapa de Reportes" (004) lo lee de vuelta para
+    /// posicionar el marcador (FR-003).
+    double? latitude,
+
+    /// Longitud del punto reportado. Mismo origen que [latitude].
+    double? longitude,
+
     /// `null` hasta que el reporte pase a "en proceso" (FR-014). Solo
     /// lectura en esta feature.
     DateTime? inProgressAt,
@@ -45,4 +54,17 @@ abstract class Report with _$Report {
     /// lectura en esta feature.
     DateTime? resolvedAt,
   }) = _Report;
+
+  const Report._();
+
+  /// `true` si el reporte tiene coordenadas válidas para dibujarse como
+  /// marcador en el mapa (feature 004, FR-004). Descarta `null`, valores
+  /// fuera de rango y el centinela `(0, 0)` (un reporte de Ibagué está en
+  /// ~`(4.44, -75.23)`, nunca en el golfo de Guinea).
+  bool get isMappable =>
+      latitude != null &&
+      longitude != null &&
+      latitude!.abs() <= 90 &&
+      longitude!.abs() <= 180 &&
+      !(latitude == 0 && longitude == 0);
 }

@@ -83,7 +83,7 @@ void main() {
         await tester.tap(find.text('Mapa'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Próximamente: Mapa de Reportes'), findsOneWidget);
+        expect(find.widgetWithText(AppBar, 'Mapa de reportes'), findsOneWidget);
         expect(find.text('Ibagué Limpia'), findsNothing);
       },
     );
@@ -136,7 +136,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(navigationBar(tester).selectedIndex, AppTab.mapa.index);
-      expect(find.text('Próximamente: Mapa de Reportes'), findsOneWidget);
+      expect(find.widgetWithText(AppBar, 'Mapa de reportes'), findsOneWidget);
     });
   });
 }

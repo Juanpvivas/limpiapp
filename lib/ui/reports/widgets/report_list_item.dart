@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../domain/models/report.dart';
+import '../../core/ui/report_photo_thumbnail.dart';
 import 'report_date_format.dart';
 import 'report_status_chip.dart';
 
@@ -23,7 +24,7 @@ class ReportListItem extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _Thumbnail(url: report.photoUrl),
+            ReportPhotoThumbnail(url: report.photoUrl),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -59,48 +60,6 @@ class ReportListItem extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _Thumbnail extends StatelessWidget {
-  const _Thumbnail({required this.url});
-
-  final String url;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: SizedBox(
-        width: 64,
-        height: 64,
-        child: url.isEmpty
-            ? const ColoredBox(
-                color: Color(0xFFEEEEEE),
-                child: Icon(Icons.image_not_supported_outlined, size: 24),
-              )
-            : Image.network(
-                url,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, progress) => progress == null
-                    ? child
-                    : const ColoredBox(
-                        color: Color(0xFFEEEEEE),
-                        child: Center(
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        ),
-                      ),
-                errorBuilder: (context, error, stack) => const ColoredBox(
-                  color: Color(0xFFEEEEEE),
-                  child: Icon(Icons.broken_image_outlined, size: 24),
-                ),
-              ),
       ),
     );
   }

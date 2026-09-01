@@ -85,6 +85,8 @@ class ReportDto {
       createdAt: _dateFrom(data['createdAt']) ?? DateTime.now(),
       status: _statusFrom(data['status'] as String?),
       deviceId: data['deviceId'] as String? ?? '',
+      latitude: _doubleFrom(data['latitude']),
+      longitude: _doubleFrom(data['longitude']),
       inProgressAt: _dateFrom(data['inProgressAt']),
       resolvedAt: _dateFrom(data['resolvedAt']),
     );
@@ -92,6 +94,11 @@ class ReportDto {
 
   static DateTime? _dateFrom(Object? value) =>
       value is Timestamp ? value.toDate() : null;
+
+  /// Tolera `num` (int/double de Firestore), `null` o un tipo inesperado —
+  /// en los dos últimos casos retorna `null` (feature 004, data-model §1).
+  static double? _doubleFrom(Object? value) =>
+      value is num ? value.toDouble() : null;
 
   static WasteCategory _categoryFrom(String? raw) =>
       WasteCategory.values.firstWhere(

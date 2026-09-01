@@ -1,17 +1,17 @@
 <!--
 Sync Impact Report
-- Version change: 2.2.0 → 2.3.0
+- Version change: 2.3.0 → 2.4.0
 - Modified principles:
-  - I. Stack Tecnológico Oficial — se agregan cinco paquetes aprobados para captura de fotos y
-    ubicación, requeridos por features como "Crear Reporte": `image_picker` (cámara/galería),
-    `flutter_image_compress` (compresión/redimensionado en el dispositivo), `geolocator`
-    (coordenadas GPS), `geocoding` (reverse geocoding a dirección legible) y `permission_handler`
-    (permisos unificados de cámara/galería/ubicación en iOS/Android).
-  - V. Inyección de Dependencias y Manejo de Errores — se aclara explícitamente que las denegaciones
-    de permiso (cámara, galería, ubicación) y los errores de `image_picker`,
-    `flutter_image_compress`, `geolocator`, `geocoding` y `permission_handler` también deben
-    mapearse a un `Failure` dentro de la implementación del Repository/Service correspondiente,
-    igual que las excepciones de Firebase o de `dio`.
+  - I. Stack Tecnológico Oficial — se agregan tres paquetes aprobados para el mapa de reportes
+    (feature "Mapa de Reportes"): `flutter_map` (mapa base interactivo sobre teselas de
+    OpenStreetMap, sin API key ni facturación de un proveedor de mapas), `latlong2` (tipo de
+    coordenadas que requiere `flutter_map`) y `flutter_map_marker_cluster` (agrupación de
+    marcadores próximos en un marcador con conteo según el zoom).
+  - V. Inyección de Dependencias y Manejo de Errores — se aclara que los errores de renderizado del
+    mapa (`flutter_map`: fallo al descargar mosaicos, proveedor de teselas inaccesible, sin
+    conexión) NO se envuelven en un `Failure` de Repository porque no provienen de una fuente de
+    datos; se manejan en la capa de Presentación degradando la vista. Los datos que alimentan los
+    marcadores siguen fluyendo por un Repository/stream y sus errores sí se mapean a `Failure`.
 - Added sections: ninguna (expansión de reglas existentes, no secciones nuevas)
 - Removed sections: ninguna
 - Follow-up TODOs: ninguno.
@@ -42,6 +42,8 @@ decisión ad-hoc en un PR.
 | Ubicación | `geolocator` | Obtener las coordenadas GPS del dispositivo |
 | Geocodificación | `geocoding` | Convertir coordenadas GPS en una dirección legible (reverse geocoding) para mostrarla al usuario |
 | Permisos | `permission_handler` | Solicitar y verificar permisos de cámara, galería y ubicación de forma unificada en iOS/Android |
+| Mapa base | `flutter_map` + `latlong2` | Renderizar un mapa interactivo (desplazable, con zoom) sobre teselas de OpenStreetMap —sin API key ni facturación de un proveedor de mapas— y ubicar marcadores por coordenadas (ej. "Mapa de Reportes"). `latlong2` es el tipo de coordenadas obligatorio de `flutter_map` |
+| Agrupación de marcadores | `flutter_map_marker_cluster` | Agrupar marcadores próximos entre sí en un único marcador con conteo, según el nivel de zoom, sobre `flutter_map` |
 | Ruteo | `go_router` | Navegación declarativa y guards de ruta |
 | Modelos/serialización | `freezed` + `json_serializable` | Inmutabilidad, `copyWith`, `==`, unions, DTOs |
 | Persistencia local | `shared_preferences` (config simple) / `isar` (datos estructurados) | Cache y almacenamiento offline |
@@ -69,7 +71,12 @@ requieren una API REST. `image_picker`, `flutter_image_compress`, `geolocator`, 
 `permission_handler` se fijan como el único camino aprobado para capturar fotos y ubicación (en vez
 de que cada feature elija su propia librería de cámara/GPS), ya que son necesidades transversales a
 cualquier feature que reporte un punto geográfico con evidencia fotográfica, empezando por "Crear
-Reporte".
+Reporte". `flutter_map` se elige sobre `google_maps_flutter` para el mapa base porque usa teselas de
+OpenStreetMap sin requerir una API key ni habilitar la facturación de un proveedor de mapas, lo que
+mantiene el proyecto sin superficies adicionales de credenciales o costos; `latlong2` es su tipo de
+coordenadas obligatorio y `flutter_map_marker_cluster` es el complemento de su ecosistema para
+agrupar marcadores. La condición al usar `flutter_map` es mantener visible en pantalla la atribución
+de OpenStreetMap.
 
 ### II. Clean Architecture en Capas (Data / Domain / Presentation)
 
@@ -185,9 +192,18 @@ evita que se filtren en review por "parece funcionar".
   `PermissionFailure`, `LocationFailure`) dentro del Service/Repository correspondiente antes de
   cruzar hacia Domain/Presentation — nunca se propaga como excepción cruda ni se maneja con
   `try/catch` directamente en el Notifier.
+- **Errores de renderizado del mapa (`flutter_map`)**: los fallos al descargar teselas/mosaicos, un
+  proveedor de teselas inaccesible o la falta de conexión NO provienen de un Repository/Service de
+  datos y NO se envuelven en un `Failure`; se manejan dentro de la capa de Presentación degradando
+  la vista (ej. el mapa se muestra sin mosaicos pero con los marcadores y controles operativos), sin
+  bloquear la pantalla. Los datos que alimentan los marcadores (ej. la lista de reportes) sí llegan
+  por un Repository/stream y sus errores se mapean a `Failure` igual que cualquier otro dato de
+  Firestore.
 
 **Racional**: `Either` hace el manejo de errores parte de la firma del método (visible en tiempo de
-compilación), evitando `try/catch` dispersos e inconsistentes en los Notifiers.
+compilación), evitando `try/catch` dispersos e inconsistentes en los Notifiers. La tesela del mapa
+es un recurso de presentación (no un dato de dominio), por eso su fallo se resuelve degradando la UI
+y no propagando un `Failure` por capas.
 
 ## Estructura de Directorios y Organización de Archivos
 
@@ -223,4 +239,4 @@ actualizarse para reflejar la constitución, no al revés).
   aprobarse; cualquier complejidad que se desvíe de esta constitución debe justificarse
   explícitamente en la descripción del PR.
 
-**Version**: 2.3.0 | **Ratified**: 2026-08-24 | **Last Amended**: 2026-08-25
+**Version**: 2.4.0 | **Ratified**: 2026-08-24 | **Last Amended**: 2026-08-31

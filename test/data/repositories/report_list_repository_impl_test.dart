@@ -16,6 +16,8 @@ Map<String, dynamic> _doc({
   DateTime? createdAt,
   DateTime? inProgressAt,
   DateTime? resolvedAt,
+  Object? latitude = 4.4389,
+  Object? longitude = -75.2322,
 }) {
   return {
     'reportNumber': reportNumber,
@@ -25,6 +27,8 @@ Map<String, dynamic> _doc({
     'photoUrl': 'https://storage/1.jpg',
     'status': status,
     'deviceId': deviceId,
+    'latitude': latitude,
+    'longitude': longitude,
     'createdAt': Timestamp.fromDate(createdAt ?? DateTime(2026, 1, 2)),
     'inProgressAt': inProgressAt == null
         ? null
@@ -62,6 +66,29 @@ void main() {
         expect(reports[1].status, ReportStatus.solucionado);
       });
       verify(() => queryService.watchReportsByDevice('device-1')).called(1);
+    });
+
+    test('mapea latitude/longitude del documento; ausentes o de tipo '
+        'inesperado quedan en null (feature 004, FR-004)', () async {
+      when(() => queryService.watchReportsByDevice('device-1')).thenAnswer(
+        (_) => Stream.value([
+          (id: 'con-coords', data: _doc(latitude: 4.5, longitude: -75.1)),
+          (id: 'sin-coords', data: _doc(latitude: null, longitude: null)),
+          (id: 'coords-basura', data: _doc(latitude: 'x', longitude: 'y')),
+        ]),
+      );
+
+      final result = await repository.watchReports('device-1').first;
+
+      result.match((_) => fail('esperaba Right'), (reports) {
+        expect(reports[0].latitude, 4.5);
+        expect(reports[0].longitude, -75.1);
+        expect(reports[0].isMappable, isTrue);
+        expect(reports[1].latitude, isNull);
+        expect(reports[1].isMappable, isFalse);
+        expect(reports[2].latitude, isNull);
+        expect(reports[2].isMappable, isFalse);
+      });
     });
 
     test('un error del stream subyacente se emite como Left(Failure), no como '

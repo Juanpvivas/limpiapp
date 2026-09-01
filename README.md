@@ -27,6 +27,7 @@ No requiere inicio de sesión. Los mockups de referencia están en
 | Foto (cámara/galería + compresión) | `image_picker` + `flutter_image_compress` |
 | Ubicación (GPS + reverse geocoding) | `geolocator` + `geocoding` |
 | Permisos (cámara/galería/ubicación) | `permission_handler` |
+| Mapa (base OpenStreetMap + agrupación de marcadores) | `flutter_map` + `latlong2` + `flutter_map_marker_cluster` |
 | Ruteo | `go_router` |
 | Modelos/serialización | `freezed` + `json_serializable` |
 | Persistencia local | `shared_preferences` / `isar` |
@@ -86,8 +87,10 @@ independiente en [`specs/`](specs) siguiendo el flujo:
 
 | Feature | Spec | Estado |
 |---|---|---|
-| Shell de Navegación Principal | [`specs/001-navegacion-principal`](specs/001-navegacion-principal) | Implementada — pendientes assets reales de marca/fondo (T012) y validación manual de edge cases (T024) |
-| Crear Reporte | [`specs/002-crear-reporte`](specs/002-crear-reporte) | Spec lista (0 `NEEDS CLARIFICATION`) — pendiente `/speckit-plan` |
+| Shell de Navegación Principal | [`specs/001-navegacion-principal`](specs/001-navegacion-principal) | Implementada y en `main` — pendientes assets reales de marca/fondo (#12) y validación manual de edge cases (#24) |
+| Crear Reporte | [`specs/002-crear-reporte`](specs/002-crear-reporte) | Implementada y en `main` |
+| Mis Reportes | [`specs/003-mis-reportes`](specs/003-mis-reportes) | Implementada y en `main` (PR #30) |
+| Mapa de Reportes | [`specs/004-mapa-de-reportes`](specs/004-mapa-de-reportes) | Implementada — pendiente PR y QA manual en dispositivo (quickstart) |
 
 ## Documentación
 

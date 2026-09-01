@@ -123,7 +123,7 @@ void main() {
       await tester.tap(find.text('Mapa de reportes'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Próximamente: Mapa de Reportes'), findsOneWidget);
+      expect(find.widgetWithText(AppBar, 'Mapa de reportes'), findsOneWidget);
     });
   });
 }
