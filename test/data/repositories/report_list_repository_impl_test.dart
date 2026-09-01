@@ -150,28 +150,30 @@ void main() {
       );
     });
 
-    test('una primera emisión rápida seguida de silencio prolongado NO '
-        'dispara el timeout (un stream en vivo puede quedarse quieto)',
-        () async {
-      final upstream = StreamController<List<FirestoreRecord>>();
-      addTearDown(upstream.close);
-      when(() => queryService.watchReportsByDevice(any()))
-          .thenAnswer((_) => upstream.stream);
-      final repo = ReportListRepositoryImpl(
-        queryService,
-        firstSnapshotTimeout: const Duration(milliseconds: 40),
-      );
+    test(
+      'una primera emisión rápida seguida de silencio prolongado NO '
+      'dispara el timeout (un stream en vivo puede quedarse quieto)',
+      () async {
+        final upstream = StreamController<List<FirestoreRecord>>();
+        addTearDown(upstream.close);
+        when(() => queryService.watchReportsByDevice(any()))
+            .thenAnswer((_) => upstream.stream);
+        final repo = ReportListRepositoryImpl(
+          queryService,
+          firstSnapshotTimeout: const Duration(milliseconds: 40),
+        );
 
-      final events = <Either<Failure, List<Report>>>[];
-      final sub = repo.watchReports('device-1').listen(events.add);
-      addTearDown(sub.cancel);
+        final events = <Either<Failure, List<Report>>>[];
+        final sub = repo.watchReports('device-1').listen(events.add);
+        addTearDown(sub.cancel);
 
-      upstream.add([(id: 'a', data: _doc())]);
-      await Future<void>.delayed(const Duration(milliseconds: 150));
+        upstream.add([(id: 'a', data: _doc())]);
+        await Future<void>.delayed(const Duration(milliseconds: 150));
 
-      expect(events, hasLength(1));
-      expect(events.single.isRight(), isTrue);
-    });
+        expect(events, hasLength(1));
+        expect(events.single.isRight(), isTrue);
+      },
+    );
   });
 
   group('watchReportById', () {
