@@ -14,14 +14,37 @@ import '../services/firebase/report_query_service.dart';
 /// subyacente (ej. `permission-denied`, sin conexión) se intercepta con un
 /// `StreamTransformer` y se emite como `Left(Failure)` dentro del stream —
 /// nunca como un error de stream sin capturar (research.md §3).
+///
+/// Además, si `.snapshots()` no entrega su **primera** emisión dentro de
+/// [defaultFirstSnapshotTimeout], se inyecta un `Left(NetworkFailure())`
+/// (issue #3). Sin conexión y sin caché local previa (instalación nueva que
+/// nunca sincronizó), `.snapshots()` ni emite ni falla: espera conectividad
+/// indefinidamente y la pantalla se queda en el spinner. El timeout se
+/// desarma tras la primera emisión: un stream en tiempo real puede quedarse
+/// legítimamente quieto sin que eso sea un fallo (`watchReportById` incluido:
+/// `Right(null)` de "no existe" también cuenta como primera emisión).
 class ReportListRepositoryImpl implements ReportListRepository {
-  ReportListRepositoryImpl(this._queryService);
+  // Param con nombre público a propósito: Dart no permite
+  // `this._firstSnapshotTimeout` como parámetro con nombre privado, así que
+  // no se puede usar un initializing formal aquí.
+  ReportListRepositoryImpl(
+    this._queryService, {
+    Duration firstSnapshotTimeout = defaultFirstSnapshotTimeout,
+    // ignore: prefer_initializing_formals
+  }) : _firstSnapshotTimeout = firstSnapshotTimeout;
+
+  /// Ventana máxima para la primera emisión de `.snapshots()` antes de
+  /// asumir "sin conexión" (issue #3). 10 s cubre un arranque en frío con
+  /// red pobre y sigue por debajo del umbral de paciencia del usuario
+  /// (criterio de aceptación del issue: estado de error en ≤ ~10 s).
+  static const defaultFirstSnapshotTimeout = Duration(seconds: 10);
 
   final ReportQueryService _queryService;
+  final Duration _firstSnapshotTimeout;
 
   @override
   Stream<Either<Failure, List<Report>>> watchReports(String deviceId) {
-    return _queryService
+    final reports = _queryService
         .watchReportsByDevice(deviceId)
         .transform(
           StreamTransformer<
@@ -44,11 +67,15 @@ class ReportListRepositoryImpl implements ReportListRepository {
                 sink.add(Left(_mapError(error))),
           ),
         );
+    return _failIfNoFirstEvent(
+      reports,
+      const Left<Failure, List<Report>>(NetworkFailure()),
+    );
   }
 
   @override
   Stream<Either<Failure, Report?>> watchReportById(String reportId) {
-    return _queryService
+    final report = _queryService
         .watchReportById(reportId)
         .transform(
           StreamTransformer<
@@ -66,6 +93,10 @@ class ReportListRepositoryImpl implements ReportListRepository {
                 sink.add(Left(_mapError(error))),
           ),
         );
+    return _failIfNoFirstEvent(
+      report,
+      const Left<Failure, Report?>(NetworkFailure()),
+    );
   }
 
   Failure _mapError(Object error) {
@@ -75,5 +106,54 @@ class ReportListRepositoryImpl implements ReportListRepository {
       return const NetworkFailure();
     }
     return const ServerFailure();
+  }
+
+  /// Reemite [source] tal cual, pero si no produce ningún evento (dato, error
+  /// o cierre) dentro de [_firstSnapshotTimeout], inyecta [fallback] una sola
+  /// vez. Tras el primer evento real el temporizador se cancela para
+  /// siempre; si más tarde llega conectividad, los eventos `Right` posteriores
+  /// se propagan y la UI se recupera. Single-subscription, igual que el
+  /// stream de Firestore que envuelve.
+  Stream<T> _failIfNoFirstEvent<T>(Stream<T> source, T fallback) {
+    final controller = StreamController<T>();
+    var firstEventSeen = false;
+    Timer? timer;
+    StreamSubscription<T>? subscription;
+
+    void markFirstEvent() {
+      if (firstEventSeen) return;
+      firstEventSeen = true;
+      timer?.cancel();
+      timer = null;
+    }
+
+    controller.onListen = () {
+      timer = Timer(_firstSnapshotTimeout, () {
+        if (firstEventSeen || controller.isClosed) return;
+        markFirstEvent();
+        controller.add(fallback);
+      });
+      subscription = source.listen(
+        (event) {
+          markFirstEvent();
+          controller.add(event);
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          markFirstEvent();
+          controller.addError(error, stackTrace);
+        },
+        onDone: () {
+          markFirstEvent();
+          controller.close();
+        },
+      );
+    };
+    controller.onCancel = () {
+      timer?.cancel();
+      timer = null;
+      return subscription?.cancel();
+    };
+
+    return controller.stream;
   }
 }

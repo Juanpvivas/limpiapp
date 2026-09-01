@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fpdart/fpdart.dart';
 import 'package:limpiapp/data/repositories/report_list_repository_impl.dart';
 import 'package:limpiapp/data/services/firebase/report_query_service.dart';
 import 'package:limpiapp/domain/models/failure.dart';
+import 'package:limpiapp/domain/models/report.dart';
 import 'package:limpiapp/domain/models/report_status.dart';
 import 'package:limpiapp/domain/models/waste_category.dart';
 import 'package:mocktail/mocktail.dart';
@@ -125,6 +129,51 @@ void main() {
         (_) => fail('esperaba Left'),
       );
     });
+
+    test('si el stream no emite su primer snapshot dentro de la ventana, '
+        'emite Left(NetworkFailure) — cubre el spinner infinito sin conexión '
+        'ni caché previa (issue #3)', () async {
+      final upstream = StreamController<List<FirestoreRecord>>();
+      addTearDown(upstream.close);
+      when(() => queryService.watchReportsByDevice(any()))
+          .thenAnswer((_) => upstream.stream);
+      final repo = ReportListRepositoryImpl(
+        queryService,
+        firstSnapshotTimeout: const Duration(milliseconds: 40),
+      );
+
+      final result = await repo.watchReports('device-1').first;
+
+      result.match(
+        (failure) => expect(failure, isA<NetworkFailure>()),
+        (_) => fail('esperaba Left(NetworkFailure) por timeout'),
+      );
+    });
+
+    test(
+      'una primera emisión rápida seguida de silencio prolongado NO '
+      'dispara el timeout (un stream en vivo puede quedarse quieto)',
+      () async {
+        final upstream = StreamController<List<FirestoreRecord>>();
+        addTearDown(upstream.close);
+        when(() => queryService.watchReportsByDevice(any()))
+            .thenAnswer((_) => upstream.stream);
+        final repo = ReportListRepositoryImpl(
+          queryService,
+          firstSnapshotTimeout: const Duration(milliseconds: 40),
+        );
+
+        final events = <Either<Failure, List<Report>>>[];
+        final sub = repo.watchReports('device-1').listen(events.add);
+        addTearDown(sub.cancel);
+
+        upstream.add([(id: 'a', data: _doc())]);
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+
+        expect(events, hasLength(1));
+        expect(events.single.isRight(), isTrue);
+      },
+    );
   });
 
   group('watchReportById', () {
