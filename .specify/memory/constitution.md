@@ -1,16 +1,17 @@
 <!--
 Sync Impact Report
-- Version change: 2.4.0 → 2.5.0
+- Version change: 2.5.0 → 2.6.0
 - Modified principles:
-  - I. Stack Tecnológico Oficial — se agrega un paquete aprobado para la detección de
-    conectividad (feature "Manejo de estado sin conexión"): `connectivity_plus` (señal pasiva y
-    dirigida por eventos de si el dispositivo tiene alguna interfaz de red activa, usada como la
-    parte "sin red del dispositivo" del disparo híbrido del aviso global de sin conexión).
-- Added sections: ninguna (expansión de reglas existentes, no secciones nuevas)
+  - V. Inyección de Dependencias y Manejo de Errores — se agrega un carve-out acotado: un método de
+    una interfaz de Repository/Use Case en Domain que expone un FLUJO DE ESTADO OBSERVABLE (señal
+    continua cuyo valor "malo" es en sí un estado válido, no una operación puntual falible) PUEDE
+    devolver `Stream<T>` crudo si todo error de la fuente se degrada a un valor por defecto de `T`
+    dentro de la capa Data. No exime a ninguna operación puntual falible. Ejemplo:
+    `ConnectivityRepository.watch()` → `Stream<ConnectivityStatus>` (feature "Manejo de estado sin
+    conexión").
+- Added sections: ninguna (expansión material de una guía existente)
 - Removed sections: ninguna
-- Follow-up TODOs: ninguno. No se modifica el Principio V: los eventos/errores de
-  `connectivity_plus` se capturan y degradan a "offline" dentro del Service correspondiente,
-  nunca cruzan crudos — ya cubierto por la regla general de manejo de errores existente.
+- Follow-up TODOs: ninguno.
 -->
 
 # LimpiApp Constitution
@@ -196,6 +197,19 @@ evita que se filtren en review por "parece funcionar".
   `PermissionFailure`, `LocationFailure`) dentro del Service/Repository correspondiente antes de
   cruzar hacia Domain/Presentation — nunca se propaga como excepción cruda ni se maneja con
   `try/catch` directamente en el Notifier.
+- **Flujos de estado observables (carve-out acotado)**: un método de una interfaz de Repository o de
+  Use Case en Domain que expone un *flujo de estado observable* —una señal continua cuyo valor
+  "malo" es en sí mismo un estado válido, no una operación puntual que sale bien o mal— PUEDE
+  devolver `Stream<T>` crudo (sin `Either<Failure, T>`), siempre que: (1) cualquier error de la
+  fuente subyacente se capture DENTRO de la capa Data y se degrade a un valor por defecto bien
+  definido del propio `T` (nunca cruza como excepción ni como `Failure`), y (2) no exista un modo de
+  fallo con significado que el consumidor deba manejar distinto del valor degradado. Esto NO exime a
+  ninguna operación puntual falible (crear, leer una sola vez, enviar, subir, geocodificar, etc.):
+  esas siguen obligadas a `Future<Either<Failure, T>>` / `Stream<Either<Failure, T>>`. Ejemplo:
+  `ConnectivityRepository.watch()` devuelve `Stream<ConnectivityStatus>` (enum `online`/`offline`);
+  un error del stream de `connectivity_plus` se degrada a `offline` dentro del `ConnectivityService`
+  — "no se puede determinar" colapsa en "offline", así que un `Either` solo agregaría una rama
+  `Left` muerta que cada consumidor tendría que desenrollar.
 - **Errores de renderizado del mapa (`flutter_map`)**: los fallos al descargar teselas/mosaicos, un
   proveedor de teselas inaccesible o la falta de conexión NO provienen de un Repository/Service de
   datos y NO se envuelven en un `Failure`; se manejan dentro de la capa de Presentación degradando
@@ -205,9 +219,13 @@ evita que se filtren en review por "parece funcionar".
   Firestore.
 
 **Racional**: `Either` hace el manejo de errores parte de la firma del método (visible en tiempo de
-compilación), evitando `try/catch` dispersos e inconsistentes en los Notifiers. La tesela del mapa
-es un recurso de presentación (no un dato de dominio), por eso su fallo se resuelve degradando la UI
-y no propagando un `Failure` por capas.
+compilación), evitando `try/catch` dispersos e inconsistentes en los Notifiers. Su propósito es
+surfacear *modos de fallo con significado*; un flujo de estado observable no tiene uno ("no se
+puede determinar" ya es un estado válido más), así que forzar `Either` ahí sería la clase de
+ceremonia vacía que esta constitución rechaza en otros lados (clases de use case ceremoniales,
+boilerplate `*_event.dart` de Bloc) — de ahí el carve-out, acotado para no abrir un hueco en las
+operaciones falibles reales. La tesela del mapa es un recurso de presentación (no un dato de
+dominio), por eso su fallo se resuelve degradando la UI y no propagando un `Failure` por capas.
 
 ## Estructura de Directorios y Organización de Archivos
 
@@ -243,4 +261,4 @@ actualizarse para reflejar la constitución, no al revés).
   aprobarse; cualquier complejidad que se desvíe de esta constitución debe justificarse
   explícitamente en la descripción del PR.
 
-**Version**: 2.5.0 | **Ratified**: 2026-08-24 | **Last Amended**: 2026-09-01
+**Version**: 2.6.0 | **Ratified**: 2026-08-24 | **Last Amended**: 2026-09-01

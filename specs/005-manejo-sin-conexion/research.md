@@ -64,10 +64,12 @@ la constitución por `connectivity_plus`).
   - `ConnectivityStatus` (`enum { online, offline }`) en `lib/domain/models/`.
   - `ConnectivityRepository` (interfaz, `lib/domain/repositories/`): `Stream<ConnectivityStatus>
     watch()`. Devuelve un `Stream` crudo, **no** `Either<Failure, …>`: no es una operación falible
-    puntual, es un flujo de estado; un error del stream subyacente se captura en el Service y se
-    degrada (se asume "offline" mientras no se pueda determinar), nunca cruza como excepción
-    (Principio V — el flujo de estado es la excepción documentada a "todo devuelve `Either`", igual
-    criterio que se aplicará; ver §5).
+    puntual, es un flujo de estado observable; un error del stream subyacente se captura en el
+    Service y se degrada a `offline` ("no se puede determinar" ya es un estado válido), nunca cruza
+    como excepción. Esto es exactamente el **carve-out del Principio V agregado en la enmienda
+    v2.6.0** de la constitución ("Flujos de estado observables"), acotado a flujos de estado que
+    degradan a un valor por defecto de `T` dentro de la capa Data — no exime a ninguna operación
+    puntual falible (ver §5).
   - `ConnectivityService` (`lib/data/services/`): envuelve `Connectivity()` de `connectivity_plus`
     (interfaz + `onConnectivityChanged`), lleva el **contador de fallos consecutivos**, y expone
     `reportBackendReachable()` / `reportBackendUnreachable()`. Combina: `online` ⟺ (hay interfaz)

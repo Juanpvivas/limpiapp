@@ -95,15 +95,15 @@ Dependencia de proceso: la rama `fix/issue-3-offline-read-hang` se mergea a `mai
 
 | Principio | Aplica a esta feature | Estado |
 |---|---|---|
-| I. Stack Tecnológico Oficial | Todos los paquetes ya aprobados **salvo `connectivity_plus`**, que NO está en la lista (constitución v2.4.0). Es necesario para saber, de forma pasiva y dirigida por eventos, si el dispositivo tiene interfaz de red (parte (a) del disparo híbrido del aviso). La alternativa pura-Dart (`InternetAddress.lookup` periódico) es un sondeo activo, con polling y tráfico de red — peor para una franja global siempre presente (research.md §1). ⇒ **Requiere `/speckit-constitution` (bump MINOR a v2.5.0) ANTES de `/speckit-implement`.** No es una violación del plan: es un follow-up obligatorio y bloqueante, igual que `flutter_map` en la feature 004. | ⚠️ GATE (enmienda pendiente) |
-| II. Clean Architecture en Capas | Domain: `connectivity_status.dart` (enum puro) + `connectivity_repository.dart` (interfaz, expone `Stream<ConnectivityStatus>`). Data: `connectivity_repository_impl.dart` + `connectivity_service.dart` (envuelve `connectivity_plus` y lleva el contador de fallos). Presentation: `connectivityStatusProvider` (`@riverpod` stream debounced) que consumen `OfflineBanner` y las pantallas de lectura. `ReportListRepositoryImpl`/`ReportRepositoryImpl` dependen del **Service** `ConnectivityService` (un Repository puede coordinar Services — no dependen de otro Repository). Ningún archivo de `lib/ui/` importa `lib/data/`. | ✅ PASS (tras la enmienda) |
+| I. Stack Tecnológico Oficial | Todos los paquetes están aprobados. `connectivity_plus` se agregó a la lista en la enmienda **v2.5.0** (misma vía que `flutter_map` en v2.4.0): necesario para saber, de forma pasiva y dirigida por eventos, si el dispositivo tiene interfaz de red (parte (a) del disparo híbrido). Se eligió sobre la alternativa pura-Dart (`InternetAddress.lookup` periódico), que es un sondeo activo con polling y tráfico de red — peor para una franja global siempre presente (research.md §1). | ✅ PASS |
+| II. Clean Architecture en Capas | Domain: `connectivity_status.dart` (enum puro) + `connectivity_repository.dart` (interfaz, expone `Stream<ConnectivityStatus>`). Data: `connectivity_repository_impl.dart` + `connectivity_service.dart` (envuelve `connectivity_plus` y lleva el contador de fallos). Presentation: `connectivityStatusProvider` (`@riverpod` stream debounced) que consumen `OfflineBanner` y las pantallas de lectura. `ReportListRepositoryImpl`/`ReportRepositoryImpl` dependen del **Service** `ConnectivityService` (un Repository puede coordinar Services — no dependen de otro Repository). Ningún archivo de `lib/ui/` importa `lib/data/`. | ✅ PASS |
 | III. Convenciones de Código y Estilo Dart | `OfflineBanner` es `ConsumerWidget` (lee `connectivityStatusProvider`). `DataErrorState` (compartido, reemplaza `MapErrorState` y el `_ErrorState` privado de `report_list_screen.dart`) es `StatelessWidget` — recibe `message` + `onRetry` por constructor. `App` sigue `StatelessWidget`: el `builder:` de `MaterialApp.router` envuelve el child con un `Consumer`/`OfflineBanner`. `snake_case.dart`, `PascalCase`, `const` obligatorio. | ✅ PASS |
 | IV. Restricciones Estrictas | Sin `setState` para estado de negocio (conectividad y `submitError` viven en providers/notifiers de Riverpod). Ningún archivo de `lib/ui/` importa `lib/data/`. Archivos de widget bajo 200 líneas (banner y estado de error son pequeños). `context.mounted` se verifica tras los `await` de `NewReportNotifier.submit()` que ya existen (no se agregan usos nuevos de `BuildContext` tras `await`). | ✅ PASS |
-| V. Inyección de Dependencias y Manejo de Errores | `service_locator.dart` registra `Connectivity` (SDK), `ConnectivityService` y `ConnectivityRepository` con `registerLazySingleton`, igual que el resto. `ConnectivityRepository.watch()` devuelve `Stream<ConnectivityStatus>` (no `Either` — no es una operación falible, es un flujo de estado; un error del stream de `connectivity_plus` se captura en el Service y se degrada a "offline"/"desconocido", nunca cruza crudo). Los `TimeoutException` del envío y el timeout de la primera emisión de lectura se mapean a `NetworkFailure` dentro de la capa Data antes de cruzar a Domain/Presentation. Se evalúa en research.md §5 si hace falta un subtipo nuevo de `Failure` o basta `NetworkFailure` + el provider de conectividad para el matiz del mensaje. | ✅ PASS |
+| V. Inyección de Dependencias y Manejo de Errores | `service_locator.dart` registra `Connectivity` (SDK), `ConnectivityService` y `ConnectivityRepository` con `registerLazySingleton`, igual que el resto. `ConnectivityRepository.watch()` devuelve `Stream<ConnectivityStatus>` crudo (sin `Either`): la enmienda **v2.6.0** del Principio V agregó el carve-out para *flujos de estado observables* — un error del stream de `connectivity_plus` se degrada a `offline` dentro del `ConnectivityService` (nunca cruza crudo), y "no se puede determinar" ya es un estado válido, así que no hay un `Failure` con significado que envolver. Sigue siendo un carve-out acotado: los `TimeoutException` del envío y el timeout de la primera emisión de lectura (operaciones puntuales falibles) **sí** se mapean a `NetworkFailure` dentro de la capa Data. No se agrega subtipo nuevo de `Failure` (research.md §5). | ✅ PASS |
 
-Única entrada de gate: la enmienda a la constitución por `connectivity_plus` (Principio I). Se
-resuelve en research.md §1 y se ejecuta con `/speckit-constitution` antes de `/speckit-tasks` o, a
-más tardar, antes de `/speckit-implement`. No hay violaciones que requieran Complexity Tracking.
+Ambas enmiendas necesarias ya están aplicadas: `connectivity_plus` en el Principio I (v2.5.0) y el
+carve-out de flujos de estado observables en el Principio V (v2.6.0). Sin gates abiertos ni
+violaciones que requieran Complexity Tracking.
 
 ## Project Structure
 
@@ -127,7 +127,7 @@ specs/005-manejo-sin-conexion/
 
 limpiapp/
 ├── pubspec.yaml                                       # MODIFICADO — +connectivity_plus
-│                                                       #   (tras enmienda a la constitución v2.5.0)
+│                                                       #   (aprobado en constitución v2.5.0)
 ├── lib/
 │   ├── app.dart                                       # MODIFICADO — MaterialApp.router gana
 │   │                                                   #   builder: que envuelve el child con OfflineBanner
@@ -203,6 +203,6 @@ lectura no se reimplementa.
 
 ## Complexity Tracking
 
-*Sin violaciones que justificar — todos los gates de la Constitution Check pasan (PASS), salvo la
-enmienda pendiente por `connectivity_plus` (Principio I), que se resuelve con `/speckit-constitution`
-(bump MINOR a v2.5.0) y está registrada en research.md §1. No es deuda de arquitectura.*
+*Sin violaciones que justificar — todos los gates de la Constitution Check pasan (PASS). Las dos
+enmiendas que la feature necesitaba ya están aplicadas: `connectivity_plus` (Principio I, v2.5.0) y
+el carve-out de flujos de estado observables (Principio V, v2.6.0).*

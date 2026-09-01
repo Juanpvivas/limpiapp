@@ -27,9 +27,9 @@ enum ConnectivityStatus { online, offline }
 
 | Método | Firma | Descripción |
 |---|---|---|
-| `watch` | `Stream<ConnectivityStatus> watch()` | Flujo del estado actual, ya **debounced** (research.md §2): online→offline casi inmediato, offline→online tras ~1.5 s de estabilidad. Nunca emite error: un fallo del stream subyacente se degrada a `offline` dentro de la implementación (Principio V — es un flujo de estado, no una operación falible puntual). |
+| `watch` | `Stream<ConnectivityStatus> watch()` | Flujo del estado actual, ya **debounced** (research.md §2): online→offline casi inmediato, offline→online tras ~1.5 s de estabilidad. Nunca emite error: un fallo del stream subyacente se degrada a `offline` dentro de la implementación. Devuelve `Stream<T>` crudo (sin `Either`) al amparo del carve-out del Principio V para *flujos de estado observables* (enmienda v2.6.0). |
 
-No expone métodos de escritura ni `Either` (justificado en research.md §5).
+No expone métodos de escritura ni `Either` (carve-out del Principio V v2.6.0; ver research.md §3).
 
 ## 3. `ConnectivityService` (data — sin interfaz propia, wrapper delgado)
 
