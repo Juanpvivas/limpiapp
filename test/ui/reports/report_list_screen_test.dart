@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,12 +14,19 @@ import 'package:limpiapp/domain/repositories/device_identifier_repository.dart';
 import 'package:limpiapp/domain/repositories/location_repository.dart';
 import 'package:limpiapp/domain/repositories/photo_repository.dart';
 import 'package:limpiapp/domain/repositories/report_list_repository.dart';
+import 'package:limpiapp/domain/models/connectivity_status.dart';
+import 'package:limpiapp/domain/repositories/connectivity_repository.dart';
 import 'package:limpiapp/domain/repositories/report_repository.dart';
+import 'package:limpiapp/ui/core/offline_copy.dart';
+import 'package:limpiapp/ui/core/ui/data_error_state.dart';
 import 'package:limpiapp/ui/reports/widgets/report_list_item.dart';
 import 'package:limpiapp/ui/reports/widgets/report_status_chip.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockReportRepository extends Mock implements ReportRepository {}
+
+class _MockConnectivityRepository extends Mock
+    implements ConnectivityRepository {}
 
 class _MockPhotoRepository extends Mock implements PhotoRepository {}
 
@@ -47,10 +56,14 @@ Report _report(
 void main() {
   late _MockReportListRepository listRepository;
   late _MockDeviceIdentifierRepository deviceRepository;
+  late _MockConnectivityRepository connectivityRepo;
 
   setUp(() async {
     listRepository = _MockReportListRepository();
     deviceRepository = _MockDeviceIdentifierRepository();
+    connectivityRepo = _MockConnectivityRepository();
+    when(connectivityRepo.watch)
+        .thenAnswer((_) => Stream.value(ConnectivityStatus.online));
 
     await getIt.reset();
     getIt.registerLazySingleton<ReportRepository>(
@@ -65,6 +78,7 @@ void main() {
     getIt.registerLazySingleton<DeviceIdentifierRepository>(
       () => deviceRepository,
     );
+    getIt.registerLazySingleton<ConnectivityRepository>(() => connectivityRepo);
 
     when(() => deviceRepository.getDeviceId())
         .thenAnswer((_) async => const Right('d1'));
@@ -125,6 +139,62 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.widgetWithText(AppBar, 'Detalle del reporte'), findsOneWidget);
+  });
+
+  group('US2 (005) — estado de error de lectura', () {
+    testWidgets('error de servidor: DataErrorState con mensaje genérico', (
+      tester,
+    ) async {
+      when(() => listRepository.watchReports('d1'))
+          .thenAnswer((_) => Stream.value(const Left(ServerFailure())));
+
+      await pumpList(tester);
+
+      expect(find.byType(DataErrorState), findsOneWidget);
+      expect(find.text(kGenericServerErrorText), findsOneWidget);
+      expect(find.text(kRetryLabel), findsOneWidget);
+    });
+
+    testWidgets('NetworkFailure → mensaje de sin conexión (FR-007)', (
+      tester,
+    ) async {
+      when(() => listRepository.watchReports('d1'))
+          .thenAnswer((_) => Stream.value(const Left(NetworkFailure())));
+
+      await pumpList(tester);
+
+      expect(find.text(kOfflineReadErrorText), findsOneWidget);
+    });
+
+    testWidgets('connectivity offline → mensaje de sin conexión aunque el '
+        'Failure sea de servidor (FR-007)', (tester) async {
+      when(connectivityRepo.watch)
+          .thenAnswer((_) => Stream.value(ConnectivityStatus.offline));
+      when(() => listRepository.watchReports('d1'))
+          .thenAnswer((_) => Stream.value(const Left(ServerFailure())));
+
+      await pumpList(tester);
+
+      expect(find.text(kOfflineReadErrorText), findsOneWidget);
+    });
+
+    testWidgets('FR-009: el estado de error NO se limpia solo al volver la '
+        'conexión (solo con "Reintentar")', (tester) async {
+      final conn = StreamController<ConnectivityStatus>.broadcast();
+      addTearDown(conn.close);
+      when(connectivityRepo.watch).thenAnswer((_) => conn.stream);
+      when(() => listRepository.watchReports('d1'))
+          .thenAnswer((_) => Stream.value(const Left(NetworkFailure())));
+
+      await pumpList(tester);
+      expect(find.byType(DataErrorState), findsOneWidget);
+
+      conn.add(ConnectivityStatus.online);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.byType(DataErrorState), findsOneWidget);
+    });
   });
 
   group('US2 — filtro por pestañas', () {

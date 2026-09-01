@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:limpiapp/data/repositories/report_repository_impl.dart';
+import 'package:limpiapp/data/services/connectivity_service.dart';
 import 'package:limpiapp/data/services/firebase/report_firestore_service.dart';
 import 'package:limpiapp/data/services/firebase/report_storage_service.dart';
 import 'package:limpiapp/domain/models/failure.dart';
@@ -22,10 +24,13 @@ class _MockReportStorageService extends Mock implements ReportStorageService {}
 class _MockDeviceIdentifierRepository extends Mock
     implements DeviceIdentifierRepository {}
 
+class _MockConnectivityService extends Mock implements ConnectivityService {}
+
 void main() {
   late _MockReportFirestoreService firestoreService;
   late _MockReportStorageService storageService;
   late _MockDeviceIdentifierRepository deviceIdentifierRepository;
+  late _MockConnectivityService connectivity;
   late ReportRepositoryImpl repository;
 
   final draft = NewReportDraft(
@@ -43,10 +48,12 @@ void main() {
     firestoreService = _MockReportFirestoreService();
     storageService = _MockReportStorageService();
     deviceIdentifierRepository = _MockDeviceIdentifierRepository();
+    connectivity = _MockConnectivityService();
     repository = ReportRepositoryImpl(
       firestoreService: firestoreService,
       storageService: storageService,
       deviceIdentifierRepository: deviceIdentifierRepository,
+      connectivityService: connectivity,
     );
 
     when(() => firestoreService.reserveDocId()).thenReturn('doc123');
@@ -166,5 +173,67 @@ void main() {
         );
       },
     );
+  });
+
+  group('timeout de envío (feature 005 / T026)', () {
+    ReportRepositoryImpl repoWithTimeout() => ReportRepositoryImpl(
+      firestoreService: firestoreService,
+      storageService: storageService,
+      deviceIdentifierRepository: deviceIdentifierRepository,
+      connectivityService: connectivity,
+      sendTimeout: const Duration(milliseconds: 40),
+    );
+
+    test('un paso de red que no responde dentro del timeout → '
+        'Left(NetworkFailure) + reportBackendUnreachable()', () async {
+      when(() => storageService.upload('doc123', draft.photo.bytes))
+          .thenAnswer((_) => Completer<String>().future); // nunca responde
+
+      final result = await repoWithTimeout().submitReport(draft);
+
+      expect(result.isLeft(), isTrue);
+      result.match(
+        (f) => expect(f, isA<NetworkFailure>()),
+        (_) => fail('esperaba Left(NetworkFailure)'),
+      );
+      verify(connectivity.reportBackendUnreachable).called(1);
+    });
+
+    test('si la transacción no responde dentro del timeout → borra la foto '
+        'ya subida y retorna Left(NetworkFailure)', () async {
+      when(() => storageService.upload('doc123', draft.photo.bytes))
+          .thenAnswer((_) async => 'https://storage/doc123.jpg');
+      when(
+        () => firestoreService.createReport(
+          docId: 'doc123',
+          reportData: any(named: 'reportData'),
+        ),
+      ).thenAnswer((_) => Completer<String>().future);
+      when(() => storageService.delete('doc123')).thenAnswer((_) async {});
+
+      final result = await repoWithTimeout().submitReport(draft);
+
+      result.match(
+        (f) => expect(f, isA<NetworkFailure>()),
+        (_) => fail('esperaba Left(NetworkFailure)'),
+      );
+      verify(() => storageService.delete('doc123')).called(1);
+      verify(connectivity.reportBackendUnreachable).called(1);
+    });
+
+    test('un envío exitoso llama reportBackendReachable()', () async {
+      when(() => storageService.upload('doc123', draft.photo.bytes))
+          .thenAnswer((_) async => 'https://storage/doc123.jpg');
+      when(
+        () => firestoreService.createReport(
+          docId: 'doc123',
+          reportData: any(named: 'reportData'),
+        ),
+      ).thenAnswer((_) async => '#IL-2026-000125');
+
+      await repository.submitReport(draft);
+
+      verify(connectivity.reportBackendReachable).called(1);
+    });
   });
 }

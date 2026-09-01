@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:limpiapp/config/service_locator.dart';
+import 'package:limpiapp/domain/models/connectivity_status.dart';
 import 'package:limpiapp/domain/models/failure.dart';
 import 'package:limpiapp/domain/models/new_report_draft.dart';
 import 'package:limpiapp/domain/models/photo.dart';
@@ -14,6 +15,8 @@ import 'package:limpiapp/domain/models/waste_category.dart';
 import 'package:limpiapp/domain/repositories/location_repository.dart';
 import 'package:limpiapp/domain/repositories/photo_repository.dart';
 import 'package:limpiapp/domain/repositories/report_repository.dart';
+import 'package:limpiapp/ui/core/offline_copy.dart';
+import 'package:limpiapp/ui/core/providers/connectivity_provider.dart';
 import 'package:limpiapp/ui/reports/providers/new_report_provider.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -67,7 +70,13 @@ void main() {
     when(() => locationRepository.getCurrentLocation())
         .thenAnswer((_) async => const Right(autoLocation));
 
-    container = ProviderContainer();
+    container = ProviderContainer(
+      overrides: [
+        connectivityStatusProvider.overrideWith(
+          (ref) => Stream.value(ConnectivityStatus.online),
+        ),
+      ],
+    );
     addTearDown(container.dispose);
   });
 
@@ -171,10 +180,67 @@ void main() {
     expect(result, isNull);
     final state = container.read(newReportProvider);
     expect(state.isSubmitting, isFalse);
-    expect(state.submitError, isNotNull);
+    expect(state.submitError, kOfflineSubmitErrorText); // FR-018
+    // FR-015/SC-005: el borrador se conserva también en el camino de fallo.
     expect(state.photo, photo);
     expect(state.category, WasteCategory.basuraAcumulada);
     expect(state.description, 'Huele muy mal');
+  });
+
+  test('submit() con connectivity offline: NO llama al Repository, fija el '
+      'mensaje específico y no deja isSubmitting en true (FR-013)', () async {
+    final offlineContainer = ProviderContainer(
+      overrides: [
+        connectivityStatusProvider.overrideWith(
+          (ref) => Stream.value(ConnectivityStatus.offline),
+        ),
+      ],
+    );
+    addTearDown(offlineContainer.dispose);
+    offlineContainer.listen(newReportProvider, (_, _) {});
+    // Calienta el provider de conectividad para que su Stream.value(offline)
+    // ya esté resuelto cuando `submit()` lea el estado (en la app real el
+    // OfflineBanner lo mantiene suscrito desde el arranque).
+    offlineContainer.listen(connectivityStatusProvider, (_, _) {});
+    final notifier = offlineContainer.read(newReportProvider.notifier);
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    when(() => photoRepository.pickFromCamera())
+        .thenAnswer((_) async => Right(photo));
+    await notifier.pickPhotoFromCamera();
+    notifier.setCategory(WasteCategory.basuraAcumulada);
+
+    final result = await notifier.submit();
+
+    expect(result, isNull);
+    verifyNever(() => reportRepository.submitReport(any()));
+    final state = offlineContainer.read(newReportProvider);
+    expect(state.isSubmitting, isFalse);
+    expect(state.submitError, kOfflineSubmitErrorText);
+  });
+
+  test('submit() con Left(ServerFailure): mensaje genérico, no el de sin '
+      'conexión (FR-018)', () async {
+    keepAlive();
+    final notifier = container.read(newReportProvider.notifier);
+    await Future<void>.delayed(Duration.zero);
+
+    when(() => photoRepository.pickFromCamera())
+        .thenAnswer((_) async => Right(photo));
+    await notifier.pickPhotoFromCamera();
+    notifier.setCategory(WasteCategory.basuraAcumulada);
+
+    when(() => reportRepository.submitReport(any()))
+        .thenAnswer((_) async => const Left(ServerFailure()));
+
+    await notifier.submit();
+
+    expect(
+      container.read(newReportProvider).submitError,
+      isNot(kOfflineSubmitErrorText),
+    );
+    expect(container.read(newReportProvider).submitError, isNotNull);
   });
 
   test('permiso de foto denegado activa showPermissionDeniedAlert, y '

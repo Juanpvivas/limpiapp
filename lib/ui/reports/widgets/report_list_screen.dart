@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../config/routes.dart';
 import '../../../domain/models/report.dart';
+import '../../core/providers/connectivity_provider.dart';
+import '../../core/read_error_message.dart';
+import '../../core/ui/data_error_state.dart';
 import '../providers/my_reports_provider.dart';
 import '../providers/report_filter_provider.dart';
 import 'report_filter_tabs.dart';
@@ -24,8 +27,13 @@ class ReportListScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Mis reportes')),
       body: reportsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) =>
-            _ErrorState(onRetry: () => ref.invalidate(myReportsProvider)),
+        error: (error, _) => DataErrorState(
+          message: readErrorMessage(
+            error,
+            ref.watch(connectivityStatusProvider).value,
+          ),
+          onRetry: () => ref.invalidate(myReportsProvider),
+        ),
         data: (reports) => _ReportListView(reports: reports),
       ),
     );
@@ -69,40 +77,6 @@ class _ReportListView extends ConsumerWidget {
                 ),
         ),
       ],
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.cloud_off_outlined,
-              size: 64,
-              color: Colors.black38,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No se pudieron cargar tus reportes.\n'
-              'Revisa tu conexión e intenta de nuevo.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton(onPressed: onRetry, child: const Text('Reintentar')),
-          ],
-        ),
-      ),
     );
   }
 }

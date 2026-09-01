@@ -1,18 +1,15 @@
 <!--
 Sync Impact Report
-- Version change: 2.3.0 → 2.4.0
+- Version change: 2.5.0 → 2.6.0
 - Modified principles:
-  - I. Stack Tecnológico Oficial — se agregan tres paquetes aprobados para el mapa de reportes
-    (feature "Mapa de Reportes"): `flutter_map` (mapa base interactivo sobre teselas de
-    OpenStreetMap, sin API key ni facturación de un proveedor de mapas), `latlong2` (tipo de
-    coordenadas que requiere `flutter_map`) y `flutter_map_marker_cluster` (agrupación de
-    marcadores próximos en un marcador con conteo según el zoom).
-  - V. Inyección de Dependencias y Manejo de Errores — se aclara que los errores de renderizado del
-    mapa (`flutter_map`: fallo al descargar mosaicos, proveedor de teselas inaccesible, sin
-    conexión) NO se envuelven en un `Failure` de Repository porque no provienen de una fuente de
-    datos; se manejan en la capa de Presentación degradando la vista. Los datos que alimentan los
-    marcadores siguen fluyendo por un Repository/stream y sus errores sí se mapean a `Failure`.
-- Added sections: ninguna (expansión de reglas existentes, no secciones nuevas)
+  - V. Inyección de Dependencias y Manejo de Errores — se agrega un carve-out acotado: un método de
+    una interfaz de Repository/Use Case en Domain que expone un FLUJO DE ESTADO OBSERVABLE (señal
+    continua cuyo valor "malo" es en sí un estado válido, no una operación puntual falible) PUEDE
+    devolver `Stream<T>` crudo si todo error de la fuente se degrada a un valor por defecto de `T`
+    dentro de la capa Data. No exime a ninguna operación puntual falible. Ejemplo:
+    `ConnectivityRepository.watch()` → `Stream<ConnectivityStatus>` (feature "Manejo de estado sin
+    conexión").
+- Added sections: ninguna (expansión material de una guía existente)
 - Removed sections: ninguna
 - Follow-up TODOs: ninguno.
 -->
@@ -44,6 +41,7 @@ decisión ad-hoc en un PR.
 | Permisos | `permission_handler` | Solicitar y verificar permisos de cámara, galería y ubicación de forma unificada en iOS/Android |
 | Mapa base | `flutter_map` + `latlong2` | Renderizar un mapa interactivo (desplazable, con zoom) sobre teselas de OpenStreetMap —sin API key ni facturación de un proveedor de mapas— y ubicar marcadores por coordenadas (ej. "Mapa de Reportes"). `latlong2` es el tipo de coordenadas obligatorio de `flutter_map` |
 | Agrupación de marcadores | `flutter_map_marker_cluster` | Agrupar marcadores próximos entre sí en un único marcador con conteo, según el nivel de zoom, sobre `flutter_map` |
+| Conectividad | `connectivity_plus` | Señal pasiva y dirigida por eventos (`onConnectivityChanged`) de si el dispositivo tiene alguna interfaz de red activa (WiFi/datos), para el aviso global de "sin conexión" (ej. "Manejo de estado sin conexión") |
 | Ruteo | `go_router` | Navegación declarativa y guards de ruta |
 | Modelos/serialización | `freezed` + `json_serializable` | Inmutabilidad, `copyWith`, `==`, unions, DTOs |
 | Persistencia local | `shared_preferences` (config simple) / `isar` (datos estructurados) | Cache y almacenamiento offline |
@@ -76,7 +74,14 @@ OpenStreetMap sin requerir una API key ni habilitar la facturación de un provee
 mantiene el proyecto sin superficies adicionales de credenciales o costos; `latlong2` es su tipo de
 coordenadas obligatorio y `flutter_map_marker_cluster` es el complemento de su ecosistema para
 agrupar marcadores. La condición al usar `flutter_map` es mantener visible en pantalla la atribución
-de OpenStreetMap.
+de OpenStreetMap. `connectivity_plus` se elige sobre un sondeo activo propio (ej.
+`InternetAddress.lookup` periódico) porque el aviso global de sin conexión es una franja siempre
+presente que debe reaccionar a cambios de red sin hacer polling ni gastar batería/datos; es el
+paquete estándar del ecosistema Flutter para esto, mantenido, soporta Android e iOS, y solo añade
+el permiso `ACCESS_NETWORK_STATE` (nivel normal, sin prompt al usuario) vía manifest merge — sin
+configuración adicional en iOS. Detecta la interfaz de red, no si hay internet real; el caso "hay
+red pero no hay internet" se resuelve sin un paquete adicional, con un contador de fallos
+consecutivos de conexión que reportan los Repositories existentes.
 
 ### II. Clean Architecture en Capas (Data / Domain / Presentation)
 
@@ -192,6 +197,19 @@ evita que se filtren en review por "parece funcionar".
   `PermissionFailure`, `LocationFailure`) dentro del Service/Repository correspondiente antes de
   cruzar hacia Domain/Presentation — nunca se propaga como excepción cruda ni se maneja con
   `try/catch` directamente en el Notifier.
+- **Flujos de estado observables (carve-out acotado)**: un método de una interfaz de Repository o de
+  Use Case en Domain que expone un *flujo de estado observable* —una señal continua cuyo valor
+  "malo" es en sí mismo un estado válido, no una operación puntual que sale bien o mal— PUEDE
+  devolver `Stream<T>` crudo (sin `Either<Failure, T>`), siempre que: (1) cualquier error de la
+  fuente subyacente se capture DENTRO de la capa Data y se degrade a un valor por defecto bien
+  definido del propio `T` (nunca cruza como excepción ni como `Failure`), y (2) no exista un modo de
+  fallo con significado que el consumidor deba manejar distinto del valor degradado. Esto NO exime a
+  ninguna operación puntual falible (crear, leer una sola vez, enviar, subir, geocodificar, etc.):
+  esas siguen obligadas a `Future<Either<Failure, T>>` / `Stream<Either<Failure, T>>`. Ejemplo:
+  `ConnectivityRepository.watch()` devuelve `Stream<ConnectivityStatus>` (enum `online`/`offline`);
+  un error del stream de `connectivity_plus` se degrada a `offline` dentro del `ConnectivityService`
+  — "no se puede determinar" colapsa en "offline", así que un `Either` solo agregaría una rama
+  `Left` muerta que cada consumidor tendría que desenrollar.
 - **Errores de renderizado del mapa (`flutter_map`)**: los fallos al descargar teselas/mosaicos, un
   proveedor de teselas inaccesible o la falta de conexión NO provienen de un Repository/Service de
   datos y NO se envuelven en un `Failure`; se manejan dentro de la capa de Presentación degradando
@@ -201,9 +219,13 @@ evita que se filtren en review por "parece funcionar".
   Firestore.
 
 **Racional**: `Either` hace el manejo de errores parte de la firma del método (visible en tiempo de
-compilación), evitando `try/catch` dispersos e inconsistentes en los Notifiers. La tesela del mapa
-es un recurso de presentación (no un dato de dominio), por eso su fallo se resuelve degradando la UI
-y no propagando un `Failure` por capas.
+compilación), evitando `try/catch` dispersos e inconsistentes en los Notifiers. Su propósito es
+surfacear *modos de fallo con significado*; un flujo de estado observable no tiene uno ("no se
+puede determinar" ya es un estado válido más), así que forzar `Either` ahí sería la clase de
+ceremonia vacía que esta constitución rechaza en otros lados (clases de use case ceremoniales,
+boilerplate `*_event.dart` de Bloc) — de ahí el carve-out, acotado para no abrir un hueco en las
+operaciones falibles reales. La tesela del mapa es un recurso de presentación (no un dato de
+dominio), por eso su fallo se resuelve degradando la UI y no propagando un `Failure` por capas.
 
 ## Estructura de Directorios y Organización de Archivos
 
@@ -239,4 +261,4 @@ actualizarse para reflejar la constitución, no al revés).
   aprobarse; cualquier complejidad que se desvíe de esta constitución debe justificarse
   explícitamente en la descripción del PR.
 
-**Version**: 2.4.0 | **Ratified**: 2026-08-24 | **Last Amended**: 2026-08-31
+**Version**: 2.6.0 | **Ratified**: 2026-08-24 | **Last Amended**: 2026-09-01
