@@ -5,6 +5,27 @@ documentan aquí. El formato de versión es `X.Y.Z+B` (`pubspec.yaml`): `X.Y.Z` 
 visible para el usuario, `B` es el número de build — se sube en cada build nuevo distribuido a
 testers, aunque `X.Y.Z` no cambie.
 
+## 1.0.0+2 — Manejo de estado sin conexión
+
+### Cambios
+
+- **Aviso global de sin conexión**: una franja visible en cualquier pantalla mientras el
+  dispositivo no tiene internet, que desaparece sola al reconectar (no bloquea la app).
+- **Lectura ("Mis reportes"/"Mapa")**: si los datos no cargan en un tiempo razonable, se muestra
+  un estado de error con botón "Reintentar" manual, en vez de quedarse cargando indefinidamente
+  (corrige el bug #3 reportado en la versión anterior).
+- **Envío de reportes**: ahora es atómico frente a fallas de red — se completa por completo
+  (con número y pantalla de Confirmación) o falla explícitamente sin dejar el formulario
+  "enviando…" ni datos a medio guardar; el usuario conserva lo que ya había escrito y puede
+  reintentar manualmente.
+- Mensaje y tono de "sin conexión" consistentes entre el aviso global y las 3 pantallas
+  afectadas (Crear reporte, Mis reportes, Mapa de reportes).
+
+### Fuera de alcance de esta versión
+
+Bandeja de salida / envío diferido automático, reintento automático al reconectar (sigue siendo
+manual), modo offline de solo lectura, caché de mosaicos del mapa.
+
 ## 1.0.0+1 — Primera versión de pruebas
 
 Primer build enviado a testers vía Firebase App Distribution.
