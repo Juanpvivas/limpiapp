@@ -5,6 +5,14 @@ documentan aquí. El formato de versión es `X.Y.Z+B` (`pubspec.yaml`): `X.Y.Z` 
 visible para el usuario, `B` es el número de build — se sube en cada build nuevo distribuido a
 testers, aunque `X.Y.Z` no cambie.
 
+## 1.0.0+6 — Prueba del pipeline de distribución (reintento iOS #3)
+
+Mismo build, se repite el número otra vez: la 1.0.0+5 seguía fallando porque la firma
+Automatic de `xcodebuild archive` siempre intenta primero una identidad de Development
+(que necesita un dispositivo registrado en el equipo, y no hay ninguno), sin importar los
+overrides de línea de comandos. Se cambió a firma Manual con un certificado de Distribución
+y un provisioning profile creados de antemano, que no dependen de dispositivos.
+
 ## 1.0.0+5 — Prueba del pipeline de distribución (reintento iOS #2)
 
 Mismo build, se repite el número otra vez: en la 1.0.0+4 forzar `CODE_SIGN_IDENTITY=Apple
