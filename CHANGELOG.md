@@ -5,6 +5,13 @@ documentan aquí. El formato de versión es `X.Y.Z+B` (`pubspec.yaml`): `X.Y.Z` 
 visible para el usuario, `B` es el número de build — se sube en cada build nuevo distribuido a
 testers, aunque `X.Y.Z` no cambie.
 
+## 1.0.0+7 — Prueba del pipeline de distribución (reintento iOS #4)
+
+Mismo build, se repite el número otra vez: la 1.0.0+6 ya firmó y exportó el archive
+correctamente (la firma Manual funcionó), pero falló en el último paso — subir a
+TestFlight — porque el nombre real del `.ipa` exportado no era `Runner.ipa` como se
+asumía. Se corrigió buscando el `.ipa` dinámicamente en la carpeta de export.
+
 ## 1.0.0+6 — Prueba del pipeline de distribución (reintento iOS #3)
 
 Mismo build, se repite el número otra vez: la 1.0.0+5 seguía fallando porque la firma
