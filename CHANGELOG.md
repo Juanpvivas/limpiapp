@@ -5,6 +5,13 @@ documentan aquí. El formato de versión es `X.Y.Z+B` (`pubspec.yaml`): `X.Y.Z` 
 visible para el usuario, `B` es el número de build — se sube en cada build nuevo distribuido a
 testers, aunque `X.Y.Z` no cambie.
 
+## 1.0.0+5 — Prueba del pipeline de distribución (reintento iOS #2)
+
+Mismo build, se repite el número otra vez: en la 1.0.0+4 forzar `CODE_SIGN_IDENTITY=Apple
+Distribution` sin también fijar `DEVELOPMENT_TEAM` como override de línea de comandos dejó
+sin equipo asignado a los targets generados por Swift Package Manager (gRPC, Firebase, etc.),
+que fallaron con "requires a development team".
+
 ## 1.0.0+4 — Prueba del pipeline de distribución (reintento iOS)
 
 Mismo build que la 1.0.0+3, solo se repite el número para reintentar la distribución a
