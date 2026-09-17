@@ -5,17 +5,25 @@ documentan aquí. El formato de versión es `X.Y.Z+B` (`pubspec.yaml`): `X.Y.Z` 
 visible para el usuario, `B` es el número de build — se sube en cada build nuevo distribuido a
 testers, aunque `X.Y.Z` no cambie.
 
-## 1.0.0+3 — Prueba del pipeline de distribución
+## 1.0.0+4 — Prueba del pipeline de distribución (reintento iOS)
 
-Build sin cambios funcionales — sirve para probar el nuevo pipeline de CI que distribuye
-automáticamente a testers al pushear un tag. Primer build que llega a TestFlight además de
-Firebase App Distribution.
+Mismo build que la 1.0.0+3, solo se repite el número para reintentar la distribución a
+TestFlight — la 1.0.0+3 llegó bien a Firebase App Distribution (Android) pero el job de iOS
+falló por firma (perfil de aprovisionamiento de desarrollo en vez de distribución).
 
 ### Notas para testers
 
 - Sin cambios visibles respecto a la 1.0.0+2 (mismo alcance funcional).
-- Si te llega por TestFlight en vez de (o además de) Firebase App Distribution, es esperado:
-  es justamente lo que esta versión está probando.
+
+## 1.0.0+3 — Prueba del pipeline de distribución
+
+Build sin cambios funcionales — sirve para probar el nuevo pipeline de CI que distribuye
+automáticamente a testers al pushear un tag. Primer intento de llegar a TestFlight además de
+Firebase App Distribution (Android sí llegó; iOS falló por firma, ver 1.0.0+4).
+
+### Notas para testers
+
+- Sin cambios visibles respecto a la 1.0.0+2 (mismo alcance funcional).
 
 ## 1.0.0+2 — Manejo de estado sin conexión
 
