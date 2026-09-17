@@ -177,11 +177,28 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Import distribution certificate into a temporary keychain
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_DISTRIBUTION_CERT_P12 }}
+          p12-password: ${{ secrets.APPLE_DISTRIBUTION_CERT_PASSWORD }}
+
+      - name: Install distribution provisioning profile
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "${{ secrets.APPLE_DISTRIBUTION_PROVISIONING_PROFILE }}" | base64 -D > \
+            ~/Library/MobileDevice/Provisioning\ Profiles/LimpiappTestFlightDistribution.mobileprovision
+
       - name: Restore App Store Connect API key
         run: |
-          mkdir -p ~/private_keys
-          echo "${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}" | base64 -D > ~/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_KEY_ID }}.p8
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}" | base64 -D > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_KEY_ID }}.p8
 
+      # Firma manual (certificado + perfil ya importados arriba): xcodebuild
+      # archive con firma Automatic siempre intenta primero una identidad de
+      # Development, que requiere un dispositivo registrado en el equipo
+      # (no hay ninguno) — firmar Manual con un perfil de Distribución evita
+      # ese paso por completo.
       - name: Archive
         working-directory: ios
         run: |
@@ -190,13 +207,7 @@ jobs:
             -scheme Runner \
             -sdk iphoneos \
             -configuration Release \
-            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$HOME/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_KEY_ID }}.p8" \
-            -authenticationKeyID "${{ secrets.APP_STORE_CONNECT_KEY_ID }}" \
-            -authenticationKeyIssuerID "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            DEVELOPMENT_TEAM="XA43X2P8W2"
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive"
 
       - name: Export IPA
         working-directory: ios
@@ -204,11 +215,7 @@ jobs:
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
             -exportPath "$RUNNER_TEMP/export" \
-            -exportOptionsPlist ExportOptions.plist \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$HOME/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_KEY_ID }}.p8" \
-            -authenticationKeyID "${{ secrets.APP_STORE_CONNECT_KEY_ID }}" \
-            -authenticationKeyIssuerID "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}"
+            -exportOptionsPlist ExportOptions.plist
 
       - name: Upload to TestFlight
         run: |
